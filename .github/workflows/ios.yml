@@ -41,6 +41,45 @@ jobs:
           mv templates/* "$T/"
           /Applications/Godot.app/Contents/MacOS/Godot --version
 
+      - name: Create iOS preset if export_presets.cfg is missing
+        run: |
+          if ! grep -q 'platform="iOS"' export_presets.cfg 2>/dev/null; then
+            N=0
+            [ -f export_presets.cfg ] && N=$(grep -cE '^\[preset\.[0-9]+\]$' export_presets.cfg || true)
+            cat >> export_presets.cfg <<PRESET
+
+          [preset.$N]
+
+          name="iOS"
+          platform="iOS"
+          runnable=true
+          advanced_options=false
+          dedicated_server=false
+          custom_features=""
+          export_filter="all_resources"
+          include_filter=""
+          exclude_filter="tools/*, .github/*, *.md"
+          export_path="build/ios/MedievalWars.ipa"
+          encryption_include_filters=""
+          encryption_exclude_filters=""
+          encrypt_pck=false
+          encrypt_directory=false
+
+          [preset.$N.options]
+
+          application/app_store_team_id=""
+          application/bundle_identifier="com.towerwars.medievalwars"
+          application/signature=""
+          application/short_version="1.0"
+          application/version="1"
+          application/min_ios_version="14.0"
+          application/targeted_device_family=2
+          application/export_project_only=true
+          icons/icon_1024x1024="res://icons/icon_1024.png"
+          PRESET
+          fi
+          cat export_presets.cfg
+
       - name: iOS local network permission
         run: bash tools/add_ios_privacy.sh export_presets.cfg
 
