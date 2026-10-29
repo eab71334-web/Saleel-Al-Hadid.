@@ -1,0 +1,88 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="38%" r="75%">
+      <stop offset="0" stop-color="#7d1f2a"/>
+      <stop offset="0.55" stop-color="#2e1030"/>
+      <stop offset="1" stop-color="#0a0a20"/>
+    </radialGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff1a8"/><stop offset="0.45" stop-color="#f2b830"/><stop offset="1" stop-color="#9a6410"/>
+    </linearGradient>
+    <linearGradient id="goldv" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fff1a8"/><stop offset="0.5" stop-color="#e3a824"/><stop offset="1" stop-color="#8a560c"/>
+    </linearGradient>
+    <linearGradient id="steel" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#8c93a8"/><stop offset="0.5" stop-color="#eef2ff"/><stop offset="1" stop-color="#7a8198"/>
+    </linearGradient>
+    <linearGradient id="red" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#d63040"/><stop offset="1" stop-color="#6e0f1c"/>
+    </linearGradient>
+    <linearGradient id="blue" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2f62d8"/><stop offset="1" stop-color="#112a6e"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0" stop-color="#ffcf66" stop-opacity="0.55"/><stop offset="1" stop-color="#ffcf66" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1024" height="1024" fill="url(#bg)"/>
+  <polygon points="512,470 1412,470 1405,577" fill="#ffd27a" opacity="0.07"/><polygon points="512,470 1291,920 1231,1010" fill="#ffd27a" opacity="0.07"/><polygon points="512,470 961,1249 865,1297" fill="#ffd27a" opacity="0.07"/><polygon points="512,470 512,1369 405,1363" fill="#ffd27a" opacity="0.07"/><polygon points="512,470 62,1249 -28,1189" fill="#ffd27a" opacity="0.07"/><polygon points="512,470 -267,919 -315,823" fill="#ffd27a" opacity="0.07"/><polygon points="512,470 -387,470 -381,363" fill="#ffd27a" opacity="0.07"/><polygon points="512,470 -267,20 -207,-70" fill="#ffd27a" opacity="0.07"/><polygon points="512,470 63,-309 159,-357" fill="#ffd27a" opacity="0.07"/><polygon points="512,470 512,-429 619,-423" fill="#ffd27a" opacity="0.07"/><polygon points="512,470 962,-309 1052,-249" fill="#ffd27a" opacity="0.07"/><polygon points="512,470 1291,21 1339,117" fill="#ffd27a" opacity="0.07"/>
+  <circle cx="512" cy="500" r="470" fill="url(#glow)"/>
+  <rect x="14" y="14" width="996" height="996" rx="150" fill="none" stroke="#f2b830" stroke-width="10" opacity="0.55"/>
+  <!-- crossed swords -->
+  <g transform="translate(512 600)">
+    <g transform="rotate(42)">
+      <rect x="-18" y="-500" width="36" height="740" rx="6" fill="url(#steel)"/>
+      <polygon points="-18,-500 18,-500 0,-550" fill="#f4f7ff"/>
+      <rect x="-3" y="-490" width="6" height="710" fill="#ffffff" opacity="0.55"/>
+      <rect x="-92" y="150" width="184" height="30" rx="12" fill="url(#gold)" stroke="#5a3a0a" stroke-width="5"/>
+      <rect x="-14" y="180" width="28" height="90" rx="8" fill="#4a2a12" stroke="#2a1507" stroke-width="4"/>
+      <circle cx="0" cy="290" r="24" fill="url(#gold)" stroke="#5a3a0a" stroke-width="5"/>
+    </g>
+    <g transform="rotate(-42)">
+      <rect x="-18" y="-500" width="36" height="740" rx="6" fill="url(#steel)"/>
+      <polygon points="-18,-500 18,-500 0,-550" fill="#f4f7ff"/>
+      <rect x="-3" y="-490" width="6" height="710" fill="#ffffff" opacity="0.55"/>
+      <rect x="-92" y="150" width="184" height="30" rx="12" fill="url(#gold)" stroke="#5a3a0a" stroke-width="5"/>
+      <rect x="-14" y="180" width="28" height="90" rx="8" fill="#4a2a12" stroke="#2a1507" stroke-width="4"/>
+      <circle cx="0" cy="290" r="24" fill="url(#gold)" stroke="#5a3a0a" stroke-width="5"/>
+    </g>
+  </g>
+  <!-- shield -->
+  <path d="M512 880 C330 790 250 670 250 470 L250 330 Q512 290 774 330 L774 470 C774 670 694 790 512 880 Z" fill="#12080a" opacity="0.55" transform="translate(0 14)"/>
+  <path id="sh" d="M512 872 C336 786 262 668 262 474 L262 338 Q512 300 762 338 L762 474 C762 668 688 786 512 872 Z" fill="url(#goldv)" stroke="#4a2c06" stroke-width="8"/>
+  <path d="M512 846 C356 768 288 662 288 478 L288 362 Q512 328 736 362 L736 478 C736 662 668 768 512 846 Z" fill="url(#red)"/>
+  <path d="M512 330 Q624 336 736 362 L736 478 C736 662 668 768 512 846 Z" fill="url(#blue)"/>
+  <path d="M512 846 C356 768 288 662 288 478 L288 362 Q512 328 736 362 L736 478 C736 662 668 768 512 846 Z" fill="none" stroke="#f6d77a" stroke-width="4" opacity="0.7"/>
+  <!-- castle -->
+  <g transform="translate(512 580)">
+    <rect x="-150" y="-80" width="300" height="170" fill="url(#gold)" stroke="#5a3a0a" stroke-width="6"/>
+    <g fill="url(#gold)" stroke="#5a3a0a" stroke-width="5">
+      <rect x="-170" y="-150" width="64" height="240"/>
+      <rect x="106" y="-150" width="64" height="240"/>
+      <rect x="-48" y="-190" width="96" height="280"/>
+    </g>
+    <g fill="url(#gold)" stroke="#5a3a0a" stroke-width="5">
+      <rect x="-170" y="-178" width="20" height="30"/><rect x="-140" y="-178" width="20" height="30"/><rect x="-110" y="-178" width="4" height="30"/>
+      <rect x="106" y="-178" width="20" height="30"/><rect x="136" y="-178" width="20" height="30"/>
+      <rect x="-48" y="-218" width="26" height="30"/><rect x="-13" y="-218" width="26" height="30"/><rect x="22" y="-218" width="26" height="30"/>
+    </g>
+    <path d="M-34 90 L-34 20 Q0 -30 34 20 L34 90 Z" fill="#1a0c06" stroke="#5a3a0a" stroke-width="5"/>
+    <rect x="-8" y="-120" width="16" height="44" rx="6" fill="#1a0c06"/>
+    <rect x="-146" y="-100" width="12" height="34" rx="5" fill="#1a0c06"/>
+    <rect x="134" y="-100" width="12" height="34" rx="5" fill="#1a0c06"/>
+    <path d="M0 -190 L0 -250" stroke="#4a2a12" stroke-width="7"/>
+    <path d="M0 -250 L66 -232 L0 -214 Z" fill="#e23b3b" stroke="#6a1010" stroke-width="3"/>
+  </g>
+  <!-- crown -->
+  <g transform="translate(512 262)">
+    <path d="M-120 60 L-150 -50 L-76 6 L-34 -78 L0 0 L34 -78 L76 6 L150 -50 L120 60 Z" fill="url(#gold)" stroke="#5a3a0a" stroke-width="7" stroke-linejoin="round"/>
+    <rect x="-122" y="46" width="244" height="34" rx="10" fill="url(#gold)" stroke="#5a3a0a" stroke-width="6"/>
+    <circle cx="-150" cy="-54" r="15" fill="#ff4b5c" stroke="#5a0a14" stroke-width="4"/>
+    <circle cx="150" cy="-54" r="15" fill="#ff4b5c" stroke="#5a0a14" stroke-width="4"/>
+    <circle cx="-34" cy="-82" r="14" fill="#6fe3ff" stroke="#0a3a5a" stroke-width="4"/>
+    <circle cx="34" cy="-82" r="14" fill="#6fe3ff" stroke="#0a3a5a" stroke-width="4"/>
+    <circle cx="0" cy="-8" r="20" fill="#ff4b5c" stroke="#5a0a14" stroke-width="5"/>
+    <circle cx="-62" cy="63" r="9" fill="#6fe3ff"/><circle cx="0" cy="63" r="9" fill="#ff4b5c"/><circle cx="62" cy="63" r="9" fill="#6fe3ff"/>
+    <ellipse cx="-12" cy="-14" rx="5" ry="8" fill="#fff" opacity="0.7"/>
+  </g>
+</svg>
