@@ -1,0 +1,86 @@
+name: Export and Build iOS App
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths-ignore:
+      - "**.md"
+
+permissions:
+  contents: write
+
+env:
+  GODOT_VERSION: "4.4.1"
+
+jobs:
+  ios:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Stamp build number
+        run: |
+          N=$(git rev-list --count HEAD)
+          printf 'extends RefCounted\nconst BUILD := %s\n' "$N" > game/build.gd
+
+      - name: Install Godot and export templates
+        run: |
+          set -e
+          cd "$RUNNER_TEMP"
+          BASE="https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable"
+          curl -fsSL -o godot.zip "$BASE/Godot_v${GODOT_VERSION}-stable_macos.universal.zip"
+          curl -fsSL -o tpl.tpz "$BASE/Godot_v${GODOT_VERSION}-stable_export_templates.tpz"
+          unzip -q godot.zip
+          sudo mkdir -p /Applications && sudo mv Godot.app /Applications/Godot.app
+          unzip -q tpl.tpz
+          T="$HOME/Library/Application Support/Godot/export_templates/${GODOT_VERSION}.stable"
+          mkdir -p "$T"
+          mv templates/* "$T/"
+          /Applications/Godot.app/Contents/MacOS/Godot --version
+
+      - name: iOS local network permission
+        run: bash tools/add_ios_privacy.sh export_presets.cfg
+
+      - name: Import project
+        run: |
+          G=/Applications/Godot.app/Contents/MacOS/Godot
+          $G --headless --path . --import || true
+          $G --headless --path . --import || true
+
+      - name: Export Xcode project
+        run: |
+          mkdir -p build/ios
+          /Applications/Godot.app/Contents/MacOS/Godot --headless --path . --export-release "iOS" build/ios/MedievalWars.ipa || true
+          find build/ios -maxdepth 2 | head -30
+
+      - name: Build unsigned IPA
+        run: |
+          set -e
+          PROJ=$(find build/ios -maxdepth 2 -name "*.xcodeproj" | head -1)
+          echo "Project: $PROJ"
+          SCHEME=$(basename "$PROJ" .xcodeproj)
+          xcodebuild -project "$PROJ" -scheme "$SCHEME" -configuration Release \
+            -sdk iphoneos -destination "generic/platform=iOS" \
+            -archivePath build/MedievalWars.xcarchive archive \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" DEVELOPMENT_TEAM=""
+          rm -rf build/Payload && mkdir -p build/Payload
+          cp -R build/MedievalWars.xcarchive/Products/Applications/*.app build/Payload/
+          (cd build && zip -qr MedievalWars-unsigned.ipa Payload)
+          ls -la build
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MedievalWars-ios-unsigned-ipa
+          path: build/MedievalWars-unsigned.ipa
+
+      - name: Publish release
+        if: github.event_name != 'pull_request'
+        continue-on-error: true
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ios-${{ github.run_number }}
+          name: iOS build ${{ github.run_number }}
+          files: build/MedievalWars-unsigned.ipa
