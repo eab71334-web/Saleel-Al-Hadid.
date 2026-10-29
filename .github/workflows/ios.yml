@@ -67,7 +67,7 @@ jobs:
 
           [preset.$N.options]
 
-          application/app_store_team_id=""
+          application/app_store_team_id="AAAAAAAAAA"
           application/bundle_identifier="com.towerwars.medievalwars"
           application/signature=""
           application/short_version="1.0"
@@ -79,6 +79,9 @@ jobs:
           PRESET
           fi
           cat export_presets.cfg
+
+      - name: Fill dummy Team ID (Godot refuses to export without one; we sign nothing anyway)
+        run: sed -i.bak 's/application\/app_store_team_id=""/application\/app_store_team_id="AAAAAAAAAA"/' export_presets.cfg
 
       - name: iOS local network permission
         run: bash tools/add_ios_privacy.sh export_presets.cfg
@@ -100,6 +103,7 @@ jobs:
           set -e
           PROJ=$(find build/ios -maxdepth 2 -name "*.xcodeproj" | head -1)
           echo "Project: $PROJ"
+          if [ -z "$PROJ" ]; then echo "No Xcode project was exported - see the Export Xcode project step"; exit 1; fi
           SCHEME=$(basename "$PROJ" .xcodeproj)
           xcodebuild -project "$PROJ" -scheme "$SCHEME" -configuration Release \
             -sdk iphoneos -destination "generic/platform=iOS" \
