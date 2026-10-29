@@ -1,0 +1,72 @@
+name: Light update (tiny download)
+
+# Builds ONLY the game data (scripts, scenes, models) as a ~30 KB update.
+# No engine, no iOS/Android build -> finishes in about a minute.
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "game/**"
+      - "project.godot"
+
+permissions:
+  contents: write
+
+env:
+  # Must be the SAME Godot version the full app was built with.
+  GODOT_VERSION: "4.4.1"
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Godot (editor only, no templates needed)
+        run: |
+          set -e
+          cd "$RUNNER_TEMP"
+          BASE="https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable"
+          curl -fsSL -o godot.zip "$BASE/Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip"
+          unzip -q godot.zip
+          sudo mv "Godot_v${GODOT_VERSION}-stable_linux.x86_64" /usr/local/bin/godot
+          godot --version
+
+      - name: Stamp build number
+        run: |
+          N=$(git rev-list --count HEAD)
+          printf 'extends RefCounted\nconst BUILD := %s\n' "$N" > game/build.gd
+          echo "BUILD=$N" >> "$GITHUB_ENV"
+
+      - name: Add Update preset
+        run: bash tools/add_pack_preset.sh export_presets.cfg
+
+      - name: Import and export the pack
+        run: |
+          godot --headless --path . --import || true
+          godot --headless --path . --import || true
+          mkdir -p build
+          godot --headless --path . --export-pack "Update" build/update.pck
+          SIZE=$(stat -c %s build/update.pck)
+          printf '{"build": %s, "size": %s}\n' "$BUILD" "$SIZE" > build/update.json
+          cd build && zip -9 MedievalWars-update.zip update.pck update.json
+          ls -la
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MedievalWars-light-update
+          path: build/MedievalWars-update.zip
+
+      - name: Publish for the in-game updater
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: light-update
+          name: Light update (used by the game)
+          body: "Latest game data. The game downloads update.json and update.pck from here."
+          files: |
+            build/update.pck
+            build/update.json
+            build/MedievalWars-update.zip
