@@ -1,4 +1,4 @@
-# Medieval Wars v3 — Kingdom mode + light updates
+# Saleel Al Hadid v3 — Kingdom mode + light updates
 
 ## What is new
 - **Kingdom mode** (Solo Kingdom, or Host LAN -> "Mode: KINGDOM"): start with a castle and 2 houses.
@@ -27,7 +27,7 @@ After that, every change to the game is a tiny update:
 1. Edit `game/config.gd` once: replace `YOURNAME` with your GitHub user name (and the repo name if it is not TowerWars).
 2. Make sure the repo is public, or the in-game download will not work (private repos need a login).
 3. Every time you commit changes in `game/`, the workflow **Light update (tiny download)** runs (~1 minute).
-   It makes a Release called `light-update` and an artifact `MedievalWars-light-update` (a ~140 KB zip).
+   It makes a Release called `light-update` and an artifact `SaleelAlHadid-light-update` (a ~140 KB zip).
 4. On the phone: open the game -> main menu shows "Update available" -> tap **Download update** -> close the game fully and open it again.
 
 Safety: if an update breaks the game before the menu appears, the next launch deletes the update automatically.

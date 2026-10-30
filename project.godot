@@ -3,7 +3,7 @@ config_version=5
 
 [application]
 
-config/name="TowerWars"
+config/name="Saleel Al Hadid"
 run/main_scene="res://game/boot.tscn"
 config/icon="res://icon.svg"
 
