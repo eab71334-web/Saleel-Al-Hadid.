@@ -6,7 +6,7 @@ python3 - "$f" <<'PY'
 import re, sys
 f = sys.argv[1]
 s = open(f).read()
-add = '<key>NSLocalNetworkUsageDescription</key><string>Medieval Wars uses the local network to find and join games on your Wi-Fi.</string>'
+add = '<key>NSLocalNetworkUsageDescription</key><string>Saleel Al Hadid uses the local network to find and join games on your Wi-Fi.</string>'
 line = 'application/additional_plist_content="%s"' % add
 out = []
 done = False
