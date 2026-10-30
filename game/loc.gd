@@ -26,7 +26,7 @@ const AR := {
 	"See everything: ": "كشف الخريطة: ", "Game speed: x%d": "سرعة اللعبة: x%d", "+500 gold, +300 food": "+500 ذهب، +300 أكل",
 	"Your kingdom has fallen. You are now watching.": "سقطت مملكتك. أنت الحين تشاهد.",
 	# menu
-	"MEDIEVAL WARS": "حروب القرون الوسطى",
+	"SALEEL AL HADID": "سليل الحديد",
 	"Swords  -  Bows  -  Kingdoms": "سيوف - أقواس - ممالك",
 	"Solo Battle (vs AI)": "معركة فردية (ضد الكمبيوتر)",
 	"Solo Kingdom (vs AI king)": "مملكة فردية (ضد ملك الكمبيوتر)",

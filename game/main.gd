@@ -7,6 +7,7 @@ const Build := preload("res://game/build.gd")
 const LocS := preload("res://game/loc.gd")
 const CardsS := preload("res://game/menucards.gd")
 const SettingsS := preload("res://game/settings.gd")
+const SplashS := preload("res://game/splash.gd")
 const MusicLibS := preload("res://game/music.gd")
 const MenuBgS := preload("res://game/menubg.gd")
 
@@ -81,6 +82,8 @@ func _ready() -> void:
 	_menu_music.play()
 	create_tween().tween_property(_menu_music, "volume_db", -8.0, 3.0)
 	_show_menu()
+	if not SplashS.done and OS.get_environment("NOSPLASH") == "":
+		SplashS.start(self, func(): pass)
 
 
 func _process(dt: float) -> void:
@@ -251,7 +254,7 @@ func _show_menu() -> void:
 	var em := EmblemS.new()
 	em.custom_minimum_size = Vector2(104, 104)
 	vb.add_child(em)
-	_title_lbl = _label(vb, "MEDIEVAL WARS", 72 if LocS.lang != "ar" else 58, GOLD)
+	_title_lbl = _label(vb, "SALEEL AL HADID", 64 if LocS.lang != "ar" else 58, GOLD)
 	_title_lbl.autowrap_mode = TextServer.AUTOWRAP_OFF
 	_title_lbl.add_theme_constant_override("outline_size", 14)
 	_label(vb, "Swords  -  Bows  -  Kingdoms", 30, Color(0.8, 0.8, 0.85))

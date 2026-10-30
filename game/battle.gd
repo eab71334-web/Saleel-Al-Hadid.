@@ -1704,7 +1704,7 @@ func _intro() -> void:
 	var tb := create_tween()
 	tb.tween_property(hud.bar_top, "size:y", vs.y * 0.12, 0.8)
 	tb.parallel().tween_property(hud.bar_bot, "size:y", vs.y * 0.12, 0.8)
-	hud.title.text = (String(cfg.get("king", {}).get("name", "")) if (kingdom != null and String(cfg.get("king", {}).get("name", "")) != "") else ("KINGDOM" if kingdom != null else "MEDIEVAL WARS"))
+	hud.title.text = (String(cfg.get("king", {}).get("name", "")) if (kingdom != null and String(cfg.get("king", {}).get("name", "")) != "") else ("KINGDOM" if kingdom != null else "SALEEL AL HADID"))
 	hud.title.modulate.a = 0.0
 	var tt := create_tween()
 	tt.tween_property(hud.title, "modulate:a", 1.0, 1.2)
