@@ -24,7 +24,7 @@ tools/*
 The engine itself is 25–70 MB and cannot shrink, so you install the big app ONCE.
 After that, every change to the game is a tiny update:
 
-1. Edit `game/config.gd` once: replace `YOURNAME` with your GitHub user name (and the repo name if it is not Saleel-Al-Hadid).
+1. Edit `game/config.gd` once: replace `eab71334-web` with your GitHub user name (and the repo name if it is not Saleel-Al-Hadid).
 2. Make sure the repo is public, or the in-game download will not work (private repos need a login).
 3. Every time you commit changes in `game/`, the workflow **Light update (tiny download)** runs (~1 minute).
    It makes a Release called `light-update` and an artifact `SaleelAlHadid-light-update` (a ~140 KB zip).
@@ -49,7 +49,7 @@ After you install a NEW full build, the menu will re-check and replace older upd
 - زر ADVISOR: اكتب (او اضغط ميكروفون الكيبورد) بالعربي او الإنجليزي: "ابني بيتين وثكنه", "درب 5 رماة", "خلي 30% يحرسو القلعة", "ارسل رسالة تقول نبي السلام", "هاجم".
 - الرسول: قرّب منه واضغط TALK لكتابة الرسالة، او قل للمستشار يرسلها.
 - المستشار برنامج قواعد يشتغل بدون انترنت (مش ذكاء اصطناعي سحابي).
-- بعد ما ترفع الملفات: عدّل YOURNAME في game/config.gd، وخلي الريبو public.
+- بعد ما ترفع الملفات: عدّل eab71334-web في game/config.gd، وخلي الريبو public.
 
 ---
 # v5 - إصلاح LAN + الإعدادات + قاعة العرش
