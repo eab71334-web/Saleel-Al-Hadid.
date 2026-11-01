@@ -117,6 +117,8 @@ var challenge_t := 0.0
 var duel_t := 0.0
 var duel_pair := [0, 1]
 var duel_done := false
+var clash = null
+var final_team := -1
 var duel_ring: MeshInstance3D = null
 var respawn := {}
 var ai_next := [0.0, 0.0]
@@ -1857,39 +1859,35 @@ func _tick_duel(dt: float) -> void:
 			if ka != null and kb != null and not battle.duel_active:
 				ka.position = Vector3(-5.0, 0.0, 0.0)
 				kb.position = Vector3(5.0, 0.0, 0.0)
-	if not battle.war or duel_done or battle.over:
+	# no separate duel arena any more: when the two kings meet in the war and trade blows,
+	# their swords lock (see clash.gd) and the winner decides the loser's fate
+	if not battle.war or battle.over:
 		return
-	if not battle.duel_active:
-		for pk in war_pairs.keys():
-			var ta: int = int(pk) / 10
-			var tb: int = int(pk) % 10
-			var a = battle.team_king(ta)
-			var b = battle.team_king(tb)
-			if a != null and b != null and a.position.distance_to(b.position) < DUEL_TRIGGER and not inside_any(a.position) and not inside_any(b.position):
-				var c: Vector3 = (a.position + b.position) * 0.5
-				c.y = 0.0
-				battle.duel_center = c
-				battle.duel_r = DUEL_R0
-				battle.duel_active = true
-				battle.duel_teams = [ta, tb]
-				battle.freeze_others = true
-				duel_t = 0.0
-				for k in [a, b]:
-					var off: Vector3 = k.position - c
-					off.y = 0.0
-					if off.length() > DUEL_R0 - 1.0:
-						k.position = c + off.normalized() * (DUEL_R0 - 1.0)
-				ev_all("duel_start", {"c": c, "a": ta, "b": tb})
-				break
+	if clash == null:
+		clash = preload("res://game/clash.gd").new()
+		clash.battle = battle
+		clash.kingdom = self
+		battle.add_child(clash)
+	clash.update(dt)
+
+
+# the loser lives (spared or captured): same ending as a fallen king, without the death
+func duel_end_manual(loser_t: int, winner_t: int) -> void:
+	if battle.duel_active:
+		battle.duel_active = false
+		battle.freeze_others = false
+		duel_done = true
+		ev_all("duel_end", {"loser": loser_t})
+	if nk == 2:
+		battle.finish(winner_t, "duel")
 	else:
-		duel_t += dt
-		battle.duel_r = lerpf(DUEL_R0, DUEL_R1, clampf(duel_t / DUEL_SHRINK, 0.0, 1.0))
+		damage_castle(loser_t, 1e9, winner_t)
 
 
 func on_king_death(u) -> void:
 	if not is_srv:
 		return
-	if battle.duel_active:
+	if battle.duel_active or final_team == u.team:
 		battle.duel_active = false
 		battle.freeze_others = false
 		duel_done = true

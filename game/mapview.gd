@@ -38,6 +38,7 @@ var atk: Control
 var krows := {}
 var _u := 1.0
 var trails := {}
+var _open_tw: Tween
 
 const VIS_SOLDIER := 34.0
 const VIS_KING := 42.0
@@ -467,6 +468,17 @@ func open() -> void:
 	is_open = true
 	dim.visible = true
 	battle.modal = true
+	# the king takes the folded map from his pocket and unfolds it; the chart fades in over his hands
+	var kh = battle.heroes.get(battle.my_id)
+	dim.modulate.a = 1.0
+	if kh != null and kh.rigged and not kh.dead and battle.kingdom != null and not kh.mounted:
+		kh.map_want = true
+		dim.modulate.a = 0.0
+		if _open_tw != null and _open_tw.is_valid():
+			_open_tw.kill()
+		_open_tw = dim.create_tween()
+		_open_tw.tween_interval(1.9)
+		_open_tw.tween_property(dim, "modulate:a", 1.0, 0.45)
 	zoom = 1.0
 	center = Vector2.ZERO
 	var n := enemy_sightings().size()
@@ -478,6 +490,12 @@ func close() -> void:
 	if not is_open:
 		return
 	is_open = false
+	var kh = battle.heroes.get(battle.my_id)
+	if kh != null:
+		kh.map_want = false
+	if _open_tw != null and _open_tw.is_valid():
+		_open_tw.kill()
+	dim.modulate.a = 1.0
 	station_mode = false
 	touches.clear()
 	if btn_station != null:
@@ -642,6 +660,11 @@ func _draw_map() -> void:
 		var dm := PackedVector2Array([cn + Vector2(0, -9), cn + Vector2(9, 0), cn + Vector2(0, 9), cn + Vector2(-9, 0)])
 		map.draw_colored_polygon(dm, Color(0.95, 0.78, 0.35))
 		map.draw_polyline(PackedVector2Array([dm[0], dm[1], dm[2], dm[3], dm[0]]), Color(0.25, 0.14, 0.05), 1.5)
+	# folded-paper creases (the king's four-fold chart)
+	map.draw_line(Vector2(sz.x * 0.5, 4), Vector2(sz.x * 0.5, sz.y - 4), Color(0, 0, 0, 0.16), 3.0)
+	map.draw_line(Vector2(sz.x * 0.5 + 2, 4), Vector2(sz.x * 0.5 + 2, sz.y - 4), Color(1, 0.9, 0.6, 0.07), 2.0)
+	map.draw_line(Vector2(4, sz.y * 0.5), Vector2(sz.x - 4, sz.y * 0.5), Color(0, 0, 0, 0.14), 3.0)
+	map.draw_line(Vector2(4, sz.y * 0.5 + 2), Vector2(sz.x - 4, sz.y * 0.5 + 2), Color(1, 0.9, 0.6, 0.06), 2.0)
 	# compass rose
 	var cr := Vector2(sz.x - 70 * _u, sz.y - 70 * _u)
 	map.draw_arc(cr, 30 * _u, 0, TAU, 40, Color(0.9, 0.72, 0.35, 0.8), 2.0)

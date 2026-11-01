@@ -10,6 +10,8 @@ const SettingsS := preload("res://game/settings.gd")
 const UiFxS := preload("res://game/uifx.gd")
 const TouchScrollS := preload("res://game/touchscroll.gd")
 const IntroS := preload("res://game/intro.gd")
+const Lobby3DS := preload("res://game/lobby3d.gd")
+const MainMenuS := preload("res://game/mainmenu.gd")
 const SplashS := preload("res://game/splash.gd")
 const MusicLibS := preload("res://game/music.gd")
 const MenuBgS := preload("res://game/menubg.gd")
@@ -169,7 +171,8 @@ func _make_theme() -> Theme:
 func _clear() -> VBoxContainer:
 	for c in ui.get_children():
 		ui.remove_child(c)       # gone at once (queue_free alone left ghost text for a frame)
-		c.queue_free()
+		if c != _lobby:
+			c.queue_free()
 	var bg := MenuBgS.new()
 	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
 	ui.add_child(bg)
@@ -260,28 +263,50 @@ func _set_status(t: String) -> void:
 # ---------------------------------------------------------------- screens
 func _show_menu() -> void:
 	net.stop_listening()
-	var vb := _clear()
-	var em := EmblemS.new()
-	em.custom_minimum_size = Vector2(104, 104)
-	vb.add_child(em)
-	_title_lbl = _label(vb, "SALEEL AL HADID", 64 if LocS.lang != "ar" else 58, GOLD)
-	_title_lbl.autowrap_mode = TextServer.AUTOWRAP_OFF
-	_title_lbl.add_theme_constant_override("outline_size", 14)
-	_label(vb, "Swords  -  Bows  -  Kingdoms", 30, Color(0.8, 0.8, 0.85))
-	_label(vb, "", 2)
-	var rkl := _label(vb, LocS.t(ProfS.rank_name()) + "  -  " + LocS.t("Renown") + ": %d" % ProfS.renown, 24, Color(1.0, 0.85, 0.45))
-	rkl.autowrap_mode = TextServer.AUTOWRAP_OFF
-	for mb in [_button(vb, "PLAY", func(): _show_play()), _button(vb, "THRONE HALL", func(): _show_throne()), _button(vb, "LOCAL (Wi-Fi)", func(): _show_local()), _button(vb, "Settings", func(): _show_settings())]:
-		mb.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-		mb.custom_minimum_size = Vector2(440, 58)
-	_status = _label(vb, "", 26, Color(1, 0.5, 0.4))
-	_wrap(_status)
-	_upd_label = _label(vb, "", 22, Color(0.7, 0.8, 0.9))
-	_upd_btn = _button(vb, "Download update", func(): updater.download())
-	_upd_btn.custom_minimum_size = Vector2(560, 64)
-	_upd_btn.visible = false
-	_label(vb, "build %d" % int(Build.BUILD), 18, Color(0.5, 0.5, 0.55))
+	for c in ui.get_children():
+		ui.remove_child(c)
+		if c != _lobby:
+			c.queue_free()
+	if _lobby == null:
+		_lobby = Lobby3DS.new()
+	else:
+		_lobby.refresh()
+		_lobby.intro()
+	ui.add_child(_lobby)
+	var mm = MainMenuS.new()
+	mm.main = self
+	mm.actions = {
+		"play": func(): _show_play(),
+		"throne": func(): _show_throne(),
+		"king": func(): _show_kingedit(),
+		"castle": func(): _show_castleedit(),
+		"local": func(): _show_local(),
+		"settings": func(): _show_settings(),
+	}
+	ui.add_child(mm)
 	_refresh_update()
+	_fade_in()
+
+
+var _lobby: Control = null
+
+
+func _fade_in() -> void:
+	var f := ColorRect.new()
+	f.color = Color(0, 0, 0, 1)
+	f.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	f.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	ui.add_child(f)
+	var tw := create_tween()
+	tw.tween_property(f, "color:a", 0.0, 0.35)
+	tw.tween_callback(f.queue_free)
+
+
+func _show_castleedit() -> void:
+	_clear()
+	var ce = load("res://game/castleedit.gd").new()
+	ce.back = func(): _show_menu()
+	ui.add_child(ce)
 
 
 # ---------------------------------------------------------------- king creation + throne hall
@@ -359,6 +384,13 @@ func _show_king() -> void:
 		cfg.king = {"name": ProfS.king_name, "trait": ProfS.trait_id, "diff": ProfS.diff}
 		_show_lobby(true), true)
 	_fbutton("Back", func(): _show_play())
+
+
+func _show_kingedit() -> void:
+	_clear()
+	var ke = load("res://game/kingedit.gd").new()
+	ke.back = func(): _show_menu()
+	ui.add_child(ke)
 
 
 func _show_throne() -> void:
@@ -522,7 +554,23 @@ func _show_code() -> void:
 	le.add_theme_font_size_override("font_size", 34)
 	le.alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vb.add_child(le)
+	le.context_menu_enabled = true
+	le.shortcut_keys_enabled = true
+	le.selecting_enabled = true
+	le.virtual_keyboard_enabled = true
 	var res := _label(vb, " ", 26, Color(1, 0.9, 0.6))
+	var cr := HBoxContainer.new()
+	cr.add_theme_constant_override("separation", 12)
+	vb.add_child(cr)
+	var pb := _button(cr, "Paste", func():
+		le.text = DisplayServer.clipboard_get().strip_edges()
+		le.caret_column = le.text.length())
+	pb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var cb2 := _button(cr, "Copy", func():
+		DisplayServer.clipboard_set(le.text))
+	cb2.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var xb := _button(cr, "Clear", func(): le.text = "")
+	xb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_button(vb, "Redeem", func():
 		var bk = get_node_or_null("Backend")
 		if bk == null or le.text.strip_edges() == "":

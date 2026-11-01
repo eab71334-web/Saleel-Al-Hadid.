@@ -12,6 +12,8 @@ static var daily_done := false
 static var king_name := ""
 static var trait_id := "warlord"
 static var diff := "normal"
+static var look: Dictionary = {}
+static var castle: Dictionary = {}
 static var loaded := false
 
 const RANKS := [
@@ -70,6 +72,8 @@ static func load_all() -> void:
 		king_name = String(cf.get_value("p", "king_name", ""))
 		trait_id = String(cf.get_value("p", "trait", "warlord"))
 		diff = String(cf.get_value("p", "diff", "normal"))
+		look = Dictionary(cf.get_value("p", "look", {}))
+		castle = Dictionary(cf.get_value("p", "castle", {}))
 	if daily_date != today():
 		daily_date = today()
 		daily_done = false
@@ -86,6 +90,8 @@ static func save() -> void:
 	cf.set_value("p", "king_name", king_name)
 	cf.set_value("p", "trait", trait_id)
 	cf.set_value("p", "diff", diff)
+	cf.set_value("p", "look", look)
+	cf.set_value("p", "castle", castle)
 	cf.save(PATH)
 
 

@@ -3,6 +3,9 @@ extends RefCounted
 # Everything is posed by code (no model files): walk/run/idle, several attack styles, shield raise,
 # hit reactions, three death falls, victory pose, and a heavier royal gait for kings.
 
+const KL := preload("res://game/kinglook.gd")
+const ProfL := preload("res://game/profile.gd")
+
 # attack key-frames: [time, shoulder x, shoulder y, elbow, torso yaw, torso pitch, step, shield x, shield elbow]
 const ATK := [
 	# 0 overhead chop
@@ -15,6 +18,22 @@ const ATK := [
 	[[0.0, -0.25, 0.0, -0.8, 0.0, 0.0, 0.0, -0.1, -1.0], [0.3, -2.3, 0.9, -0.6, 0.5, -0.1, -0.05, -0.8, -1.6], [0.52, -0.5, -0.7, -0.2, -0.55, 0.35, 0.3, -1.2, -1.3], [1.0, -0.25, 0.0, -0.8, 0.0, 0.0, 0.0, -0.1, -1.0]],
 	# 4 heavy two-handed smash (power attack / king)
 	[[0.0, -0.25, 0.0, -0.8, 0.0, 0.0, 0.0, -0.1, -1.0], [0.45, -3.0, 0.1, -0.4, 0.1, -0.4, -0.08, -2.3, -0.6], [0.62, -0.3, 0.0, -0.1, 0.0, 0.6, 0.5, -1.5, -0.9], [1.0, -0.25, 0.0, -0.8, 0.0, 0.0, 0.0, -0.1, -1.0]],
+]
+# --- king-only fighting moves (index 5..10)
+const HERO_SEQ := [4, 5, 6, 8, 7, 9, 10, 1, 3, 2]
+const ATK_HERO := [
+	# 5 gut thrust: coil, drive the blade in, hold, wrench it back out
+	[[0.0, -0.25, 0.0, -0.8, 0.0, 0.0, 0.0, -0.1, -1.0], [0.22, -0.5, 0.45, -2.0, 0.55, -0.05, -0.12, -1.3, -1.4], [0.42, -1.5, -0.1, -0.1, -0.3, 0.32, 0.7, -1.0, -1.6], [0.62, -1.52, -0.1, -0.08, -0.3, 0.34, 0.74, -1.0, -1.6], [0.82, -0.95, 0.0, -1.3, 0.1, -0.18, 0.12, -1.1, -1.4], [1.0, -0.25, 0.0, -0.8, 0.0, 0.0, 0.0, -0.1, -1.0]],
+	# 6 beheading cut: wide backswing, fast flat slash at neck height, flourish
+	[[0.0, -0.25, 0.0, -0.8, 0.0, 0.0, 0.0, -0.1, -1.0], [0.3, -1.55, 1.7, -0.3, 1.0, 0.0, -0.1, -1.0, -1.5], [0.5, -1.55, -1.5, -0.1, -1.1, 0.05, 0.3, -1.2, -1.5], [0.7, -2.2, -1.7, -0.5, -1.0, -0.1, 0.2, -1.2, -1.4], [1.0, -0.25, 0.0, -0.8, 0.0, 0.0, 0.0, -0.1, -1.0]],
+	# 7 whirlwind: the whole body spins (hip yaw handled in code)
+	[[0.0, -0.25, 0.0, -0.8, 0.0, 0.0, 0.0, -0.1, -1.0], [0.2, -1.55, 0.6, -0.1, 0.4, 0.1, -0.05, -1.3, -1.0], [0.55, -1.55, 0.0, -0.05, 0.0, 0.15, 0.1, -1.3, -1.0], [0.8, -1.55, -0.4, -0.05, -0.2, 0.1, 0.0, -1.2, -1.2], [1.0, -0.25, 0.0, -0.8, 0.0, 0.0, 0.0, -0.1, -1.0]],
+	# 8 rising cut: from low to high with a small hop
+	[[0.0, -0.25, 0.0, -0.8, 0.0, 0.0, 0.0, -0.1, -1.0], [0.28, 0.5, 0.3, -0.35, 0.4, 0.4, 0.2, -0.6, -1.4], [0.52, -2.9, -0.2, -0.2, -0.3, -0.4, 0.45, -1.8, -0.8], [0.75, -2.4, -0.1, -0.5, -0.1, -0.2, 0.2, -1.4, -1.0], [1.0, -0.25, 0.0, -0.8, 0.0, 0.0, 0.0, -0.1, -1.0]],
+	# 9 shield bash into a cleave
+	[[0.0, -0.25, 0.0, -0.8, 0.0, 0.0, 0.0, -0.1, -1.0], [0.25, -2.0, 0.2, -0.5, -0.45, 0.0, -0.1, -0.5, -1.6], [0.42, -2.0, 0.2, -0.5, -0.5, 0.15, 0.5, -1.6, -0.3], [0.62, -2.9, 0.1, -0.4, 0.2, -0.3, 0.2, -1.2, -0.8], [0.82, -0.3, 0.0, -0.1, 0.0, 0.55, 0.5, -1.2, -1.0], [1.0, -0.25, 0.0, -0.8, 0.0, 0.0, 0.0, -0.1, -1.0]],
+	# 10 executioner: sword high, plunge straight down, lean on it, tear it free
+	[[0.0, -0.25, 0.0, -0.8, 0.0, 0.0, 0.0, -0.1, -1.0], [0.3, -2.9, 0.0, -0.2, 0.0, -0.3, -0.05, -2.2, -0.6], [0.5, -0.5, 0.0, -0.1, 0.0, 0.75, 0.45, -1.4, -0.9], [0.7, -0.5, 0.0, -0.1, 0.0, 0.8, 0.45, -1.4, -0.9], [0.88, -1.6, 0.0, -0.9, 0.2, -0.2, 0.1, -1.0, -1.2], [1.0, -0.25, 0.0, -0.8, 0.0, 0.0, 0.0, -0.1, -1.0]],
 ]
 # bow shot: shoulder x is the DRAW arm; elbow draws back then releases
 const BOW := [[0.0, -1.3, 0.0, -1.0, 0.0, 0.0, 0.0, -1.55, -0.1], [0.55, -1.45, 0.2, -2.1, -0.15, 0.0, -0.05, -1.55, -0.1], [0.62, -1.45, 0.2, -0.9, -0.05, 0.0, 0.0, -1.55, -0.1], [1.0, -0.4, 0.0, -0.9, 0.0, 0.0, 0.0, -0.2, -0.6]]
@@ -47,6 +66,14 @@ static func build(u, tc: Color, hero: bool) -> void:
 	var green_d = u._mat(Color(0.14, 0.27, 0.13), 0.0, 0.9)
 	var wood = u._mat(Color(0.45, 0.3, 0.15), 0.0, 0.9)
 	var archer: bool = kind == "archer"
+	var L: Dictionary = {}
+	if hero:
+		var src: Dictionary = KL.force
+		if src.is_empty() and u.battle != null and "my_id" in u.battle and u.owner_id == u.battle.my_id:
+			src = ProfL.look
+		L = KL.merged(src)
+		skin = u._mat(KL.SKIN[int(L.skin)], 0.0, 0.9)
+		cloth_d = KL.cape_mat(u, L, tc, true)
 	var body: Node3D = u.body
 	# ---- hips and legs
 	var hips := _pivot(body, Vector3(0, 0.92, 0))
@@ -69,10 +96,15 @@ static func build(u, tc: Color, hero: bool) -> void:
 	var torso := _pivot(hips, Vector3(0, 0.12, 0))
 	u.rg["torso"] = torso
 	var chest_mat = green if archer else steel
+	var arm_m = KL.armor_mat(u, L) if hero else steel
+	if hero:
+		chest_mat = arm_m
 	_part(u, torso, Vector3(0.5, 0.6, 0.28), chest_mat, Vector3(0, 0.33, 0), Vector3.ZERO, true)
 	if not archer:
 		_part(u, torso, Vector3(0.44, 0.62, 0.04), cloth, Vector3(0, 0.3, 0.16))                 # tabard
 		_part(u, torso, Vector3(0.09, 0.62, 0.05), gold if hero else white, Vector3(0, 0.3, 0.17))
+		if hero:
+			KL.chest(u, torso, L)
 	_part(u, torso, Vector3(0.52, 0.08, 0.3), leather, Vector3(0, 0.04, 0))                        # belt
 	# cape on its own pivot so it can flutter
 	var cape := _pivot(torso, Vector3(0, 0.6, -0.15))
@@ -86,10 +118,13 @@ static func build(u, tc: Color, hero: bool) -> void:
 	var neck := _pivot(torso, Vector3(0, 0.66, 0))
 	var head := _pivot(neck, Vector3(0, 0.04, 0))
 	u.rg["head"] = head
-	_part(u, head, Vector3(0.3, 0.3, 0.3), skin, Vector3(0, 0.16, 0), Vector3.ZERO, true)
-	_part(u, head, Vector3(0.05, 0.05, 0.03), dark, Vector3(-0.07, 0.18, 0.155))               # eyes
-	_part(u, head, Vector3(0.05, 0.05, 0.03), dark, Vector3(0.07, 0.18, 0.155))
-	if archer:
+	if not hero:
+		_part(u, head, Vector3(0.3, 0.3, 0.3), skin, Vector3(0, 0.16, 0), Vector3.ZERO, true)
+		_part(u, head, Vector3(0.05, 0.05, 0.03), dark, Vector3(-0.07, 0.18, 0.155))               # eyes
+		_part(u, head, Vector3(0.05, 0.05, 0.03), dark, Vector3(0.07, 0.18, 0.155))
+	if hero:
+		KL.head(u, head, L, steel, steel_d, glow)
+	elif archer:
 		_part(u, head, Vector3(0.36, 0.2, 0.36), green, Vector3(0, 0.3, -0.02))                # hood
 		_part(u, head, Vector3(0.36, 0.34, 0.1), green_d, Vector3(0, 0.15, -0.16))
 		_part(u, head, Vector3(0.03, 0.03, 0.34), white, Vector3(0.12, 0.44, -0.05), Vector3(0.5, 0, 0.3))
@@ -99,11 +134,6 @@ static func build(u, tc: Color, hero: bool) -> void:
 		_part(u, head, Vector3(0.04, 0.16, 0.04), steel_d, Vector3(0, 0.18, 0.18))             # nasal bar
 		_part(u, head, Vector3(0.05, 0.12, 0.34), glow, Vector3(0, 0.44, -0.01))               # crest
 	if hero:
-		_part(u, head, Vector3(0.38, 0.08, 0.38), gold, Vector3(0, 0.38, 0))
-		for i in 5:
-			var a := float(i) / 5.0 * TAU
-			_part(u, head, Vector3(0.06, 0.15, 0.06), gold, Vector3(sin(a) * 0.17, 0.5, cos(a) * 0.17))
-		_part(u, head, Vector3(0.06, 0.06, 0.04), u._mat(Color(0.9, 0.1, 0.15), 0.2, 0.3, 0.8), Vector3(0, 0.4, 0.2))
 		for i in 6:
 			var b := float(i) / 6.0 * PI
 			_part(u, torso, Vector3(0.14, 0.12, 0.14), white, Vector3(cos(b) * 0.36, 0.64, sin(b) * 0.06 - 0.02))
@@ -112,7 +142,9 @@ static func build(u, tc: Color, hero: bool) -> void:
 	var el_p := []
 	for side in [1, -1]:
 		var sh := _pivot(torso, Vector3(0.33 * side, 0.58, 0))
-		_part(u, sh, Vector3(0.18, 0.18, 0.2), steel if not archer else green, Vector3(0, 0.0, 0), Vector3.ZERO, true)  # pauldron
+		_part(u, sh, Vector3(0.18, 0.18, 0.2), arm_m if hero else (steel if not archer else green), Vector3(0, 0.0, 0), Vector3.ZERO, true)  # pauldron
+		if hero:
+			KL.pauldron(u, sh, side, L, arm_m, gold)
 		_part(u, sh, Vector3(0.14, 0.3, 0.14), steel_d if not archer else green_d, Vector3(0, -0.17, 0))
 		var el := _pivot(sh, Vector3(0, -0.32, 0))
 		_part(u, el, Vector3(0.12, 0.28, 0.12), leather if archer else steel_d, Vector3(0, -0.14, 0))
@@ -140,11 +172,11 @@ static func build(u, tc: Color, hero: bool) -> void:
 		_part(u, torso, Vector3(0.14, 0.55, 0.14), wood, Vector3(0.14, 0.4, -0.3), Vector3(0, 0, 0.2))   # quiver
 	else:
 		var bl: float = 1.25 if hero else 1.0
-		_part(u, hand, Vector3(0.07, 0.95 * bl, 0.02), steel, Vector3(0, -0.1 - 0.475 * bl, 0.0))        # blade
+		_part(u, hand, Vector3(0.07, 0.95 * bl, 0.02), KL.blade_mat(u, L) if hero else steel, Vector3(0, -0.1 - 0.475 * bl, 0.0))        # blade
 		_part(u, hand, Vector3(0.3, 0.05, 0.07), gold, Vector3(0, -0.08, 0.0))                           # guard
 		_part(u, hand, Vector3(0.05, 0.16, 0.05), dark, Vector3(0, 0.06, 0.0))                           # grip
 		if hero:
-			_part(u, hand, Vector3(0.09, 0.09, 0.09), u._mat(Color(0.2, 0.5, 1.0), 0.2, 0.3, 0.9), Vector3(0, 0.16, 0))
+			_part(u, hand, Vector3(0.09, 0.09, 0.09), u._mat(KL.GEM[int(L.gem)], 0.2, 0.3, 0.9), Vector3(0, 0.16, 0))
 	# ---- shield on the left forearm
 	if not archer:
 		var shd := _pivot(el_p[1], Vector3(0.02, -0.18, 0.12))
@@ -153,6 +185,8 @@ static func build(u, tc: Color, hero: bool) -> void:
 		_part(u, shd, Vector3(0.12, 0.08, 0.4), gold, Vector3(-0.02, 0, 0))
 		_part(u, shd, Vector3(0.12, 0.5, 0.08), gold, Vector3(-0.02, 0, 0))
 		u.shield_n = shd
+	if hero:
+		_build_map(u, el_p[1])
 	if not archer and kind != "villager":
 		_make_trail(u, torso)
 	# per-soldier variety so a whole army never moves in lock-step
@@ -166,6 +200,48 @@ static func build(u, tc: Color, hero: bool) -> void:
 
 
 # ------------------------------------------------------------------ poses
+# four-fold parchment map the king carries in his pocket. A is the base leaf; B folds over A
+# (hinge along the long edge), C and D fold over the top. mp scales up as it is unfolded.
+static func _build_map(u, forearm: Node3D) -> void:
+	var par = u._mat(Color(0.88, 0.78, 0.55), 0.0, 0.95)
+	var par2 = u._mat(Color(0.8, 0.68, 0.44), 0.0, 0.95)
+	var ink = u._mat(Color(0.25, 0.15, 0.08), 0.0, 0.9)
+	var river = u._mat(Color(0.3, 0.5, 0.75), 0.0, 0.9)
+	var red = u._mat(Color(0.8, 0.12, 0.1), 0.0, 0.9)
+	var gold = u._mat(Color(1.0, 0.78, 0.25), 1.0, 0.25)
+	var mp := _pivot(forearm, Vector3(0, -0.36, 0.05))
+	mp.visible = false
+	var w := 0.4
+	var l := 0.5
+	# A
+	var a := _pivot(mp, Vector3.ZERO)
+	_part(u, a, Vector3(w, 0.012, l), par, Vector3.ZERO)
+	_part(u, a, Vector3(w * 0.9, 0.004, 0.012), ink, Vector3(0, 0.008, 0.1), Vector3(0, 0.3, 0))
+	_part(u, a, Vector3(0.05, 0.005, 0.05), red, Vector3(-0.08, 0.009, -0.1), Vector3(0, 0.78, 0))
+	# B (right of A), hinge on A's right edge; leaf extends +x
+	var b := _pivot(a, Vector3(w * 0.5, 0.0, 0))
+	_part(u, b, Vector3(w, 0.012, l), par2, Vector3(w * 0.5, 0, 0))
+	_part(u, b, Vector3(0.06, 0.005, l * 0.8), river, Vector3(0.12, 0.009, 0.0), Vector3(0, 0.25, 0))
+	_part(u, b, Vector3(0.07, 0.03, 0.07), ink, Vector3(0.28, 0.02, 0.12))
+	# C (above A) hinge on A's far edge; leaf extends -z
+	var c := _pivot(a, Vector3(0, 0.0, -l * 0.5))
+	_part(u, c, Vector3(w, 0.012, l), par2, Vector3(0, 0, -l * 0.5))
+	_part(u, c, Vector3(w * 0.8, 0.005, 0.015), ink, Vector3(0, 0.009, -0.2), Vector3(0, -0.2, 0))
+	_part(u, c, Vector3(0.06, 0.03, 0.06), ink, Vector3(-0.1, 0.02, -0.3))
+	# D (above B) hinge on B's far edge
+	var d := _pivot(b, Vector3(w * 0.5, 0.0, -l * 0.5))
+	_part(u, d, Vector3(w, 0.012, l), par, Vector3(0, 0, -l * 0.5))
+	_part(u, d, Vector3(0.12, 0.006, 0.12), gold, Vector3(0.0, 0.01, -0.25), Vector3(0, 0.78, 0))
+	_part(u, d, Vector3(0.06, 0.05, 0.06), red, Vector3(0.0, 0.03, -0.25))
+	# gold border strips on A for a finished look
+	_part(u, a, Vector3(w, 0.016, 0.015), gold, Vector3(0, 0, l * 0.5))
+	_part(u, a, Vector3(w, 0.016, 0.015), gold, Vector3(0, 0, -l * 0.5))
+	u.rg["map"] = mp
+	u.rg["map_b"] = b
+	u.rg["map_c"] = c
+	u.rg["map_d"] = d
+
+
 static func _key(keys: Array, s: float) -> Array:
 	for i in range(1, keys.size()):
 		var a: Array = keys[i - 1]
@@ -273,6 +349,9 @@ static func animate(u, dt: float) -> void:
 	var r_el: float = -0.8 - 0.5 * run * m
 	var l_sx: float = -0.1 + sin(ph) * 0.5 * amp * m
 	var l_el: float = -1.0 - 0.3 * run * m
+	var r_sz := 0.12
+	var l_sz := -0.1
+	var l_sy := 0.0
 	var step := 0.0
 	var hip_yaw := 0.0
 	var sw_alpha := 0.0
@@ -280,7 +359,16 @@ static func animate(u, dt: float) -> void:
 	var ab: float = 0.0
 	if atk_active:
 		if u.swing > 0.9 and u.rg_prev_swing <= 0.9:
-			u.atk_style = 4 if (u.power or hero) else randi() % 4
+			u.atk_style = 4 if u.power else randi() % 4
+			if hero:
+				if u.power:
+					u.atk_style = 4
+				elif u.pre_picked:
+					u.pre_picked = false
+				else:
+					u.atk_style = HERO_SEQ[u.combo % HERO_SEQ.size()]
+					u.combo += 1
+				u.hit_fx = 0
 			if civ:
 				u.atk_style = 0
 		var s: float = 1.0 - u.swing
@@ -288,7 +376,7 @@ static func animate(u, dt: float) -> void:
 		if archer:
 			pose = _key(BOW, s)
 		else:
-			pose = _key(ATK[u.atk_style], s)
+			pose = _key(ATK[u.atk_style] if u.atk_style < 5 else ATK_HERO[u.atk_style - 5], s)
 		r_sx = pose[0]
 		r_sy = pose[1]
 		r_el = pose[2]
@@ -306,6 +394,24 @@ static func animate(u, dt: float) -> void:
 			# the whole body follows the strike: pelvis counter-rotates, knees bend, weight drops into the blow
 			hip_yaw = -twist * 0.5
 			hip_y -= (0.08 + 0.1 * maxf(step, 0.0)) * ab
+			if hero and u.atk_style == 7:
+				var sp: float = clampf((s - 0.2) / 0.6, 0.0, 1.0)
+				hip_yaw = TAU * sp * sp * (3.0 - 2.0 * sp) * 0.9 + (-twist * 0.5 if sp <= 0.0 else 0.0)
+				hip_y += 0.06 * sin(sp * PI)
+			elif hero and u.atk_style == 8:
+				hip_y += 0.22 * _bump((s - 0.3) / 0.45)
+			if hero:
+				var fwv := Vector3(sin(u.rotation.y), 0, cos(u.rotation.y))
+				if u.atk_style == 5 or u.atk_style == 10:
+					if s > 0.45 and u.hit_fx == 0:
+						u.hit_fx = 1
+						u.battle._burst(u.position + fwv * 1.5 + Vector3(0, 0.9 if u.atk_style == 5 else 0.3, 0), Color(0.75, 0.08, 0.08), 7, 2.2, false)
+					if s > 0.8 and u.hit_fx == 1:
+						u.hit_fx = 2
+						u.battle._burst(u.position + fwv * 1.4 + Vector3(0, 0.9 if u.atk_style == 5 else 0.3, 0), Color(0.75, 0.08, 0.08), 9, 3.4, false)
+				elif u.atk_style == 6 and s > 0.5 and u.hit_fx == 0:
+					u.hit_fx = 1
+					u.battle._burst(u.position + fwv * 1.3 + Vector3(0, 1.6, 0), Color(1.0, 0.95, 0.8), 8, 4.0, true)
 			if u.atk_style == 4 and s > 0.58 and u.rg_prev_swing > 1.0 - 0.58:
 				var fw := Vector3(sin(u.rotation.y), 0, cos(u.rotation.y))
 				u.battle._burst(u.position + fw * 1.1 + Vector3(0, 0.1, 0), Color(0.72, 0.62, 0.45), 8, 3.0, false)
@@ -318,6 +424,28 @@ static func animate(u, dt: float) -> void:
 		lkx[0] = lerpf(lkx[0], 0.15 + maxf(step, 0.0) * 0.9, ab)
 		ltx[1] = lerpf(ltx[1], maxf(step, 0.0) * 0.9 + 0.15, ab)
 		lkx[1] = lerpf(lkx[1], 0.25, ab)
+	# KICK: right leg snaps up and forward, body leans back for balance
+	if u.kick_t > 0.0 and not atk_active:
+		u.kick_t = maxf(0.0, u.kick_t - dt * 2.2)
+		var kt2: float = 1.0 - u.kick_t
+		var kb: float = _bump((kt2 - 0.08) / 0.6)
+		ltx[0] = -1.6 * kb
+		lkx[0] = 0.15 + 0.1 * kb
+		ltx[1] = 0.12 * kb
+		lkx[1] = 0.25 * kb
+		pitch = -0.3 * kb
+		l_sx = -0.5
+		r_sx = -0.7
+		hip_y -= 0.05 * kb
+	match u.pose_mode:
+		"kneel", "bow":
+			ltx = [-1.45, -1.45]
+			lkx = [1.55, 1.55]
+			hip_y = 0.46
+		"lock":
+			ltx = [-0.55, 0.6]
+			lkx = [0.55, 0.3]
+			hip_y -= 0.12
 	for i in 2:
 		thighs[i].rotation.x = lerpf(thighs[i].rotation.x, ltx[i], k)
 		shins[i].rotation.x = lerpf(shins[i].rotation.x, lkx[i], k)
@@ -349,6 +477,118 @@ static func animate(u, dt: float) -> void:
 		elif not mv:
 			r_sx = -0.2 + sin(u.anim_t * 0.9 + u.gphase) * 0.1
 			l_sx = -0.15 + sin(u.anim_t * 1.1 + u.gphase) * 0.08
+	# ---- the king's map: pull it from the pocket, unfold it, study it (searching left/right), fold it away
+	var head_extra := 0.0
+	var head_yaw := 0.0
+	if hero and rg.has("map"):
+		var want: bool = u.map_want and not atk_active
+		if want:
+			u.map_t = move_toward(u.map_t, 1.0, dt * 1.3)
+			if u.map_t > 0.6:
+				u.map_open = move_toward(u.map_open, 1.0, dt * 0.85)
+		else:
+			u.map_open = move_toward(u.map_open, 0.0, dt * 1.7)
+			if u.map_open < 0.3:
+				u.map_t = move_toward(u.map_t, 0.0, dt * 1.6)
+		var mpv: Node3D = rg.map
+		var shd: Node3D = u.shield_n
+		if u.map_t > 0.001 and not cheer:
+			var b1: float = smoothstep(0.0, 0.45, u.map_t)
+			var b2: float = smoothstep(0.35, 1.0, u.map_t)
+			# hand dives into the pocket, then both hands raise the map
+			r_sx = lerpf(r_sx, 0.35, b1 * (1.0 - b2))
+			r_el = lerpf(r_el, -1.35, b1 * (1.0 - b2))
+			l_sx = lerpf(l_sx, 0.1, b1 * (1.0 - b2))
+			l_sx = lerpf(l_sx, -0.6, b2)
+			l_el = lerpf(l_el, -1.0, b2)
+			r_sx = lerpf(r_sx, -0.6, b2)
+			r_el = lerpf(r_el, -1.0, b2)
+			r_sy = lerpf(r_sy, -0.35, b2)
+			pitch += 0.12 * b2
+			head_extra = 0.55 * b2
+			var ob: float = u.map_open
+			if ob > 0.8:
+				head_yaw = sin(u.anim_t * 0.8) * 0.5
+				head_extra += 0.08 * sin(u.anim_t * 1.6)
+				r_sy = -0.35 + sin(u.anim_t * 1.1) * 0.2
+			if shd != null:
+				shd.scale = shd.scale.lerp(Vector3.ONE * (1.0 - b2), 0.3)
+			mpv.visible = u.map_t > 0.5
+			var fs: float = 0.3 + 0.55 * smoothstep(0.0, 1.0, ob)
+			mpv.scale = Vector3.ONE * fs * smoothstep(0.45, 0.7, u.map_t)
+			mpv.rotation = u.map_rot
+			u.arm.visible = u.map_t < 0.45
+			var e1: float = smoothstep(0.0, 0.5, ob)
+			var e2: float = smoothstep(0.5, 1.0, ob)
+			rg.map_b.rotation.z = -PI * (1.0 - e1) * 0.97
+			rg.map_c.rotation.x = PI * (1.0 - e2) * 0.97
+			rg.map_d.rotation.x = PI * (1.0 - e2) * 0.97
+		else:
+			mpv.visible = false
+			u.arm.visible = true
+			if shd != null:
+				shd.scale = shd.scale.lerp(Vector3.ONE, 0.3)
+	# ---- BLOCK: shield up, knees bent, sword tucked back
+	if u.blocking and not atk_active and not archer and not civ:
+		l_sx = -1.35
+		l_el = -1.6
+		r_sx = -0.7
+		r_el = -1.3
+		hip_y -= 0.1
+		pitch += 0.1
+		head_extra -= 0.1
+	# ---- scripted poses for the king clash / captive scenes
+	if u.pose_mode != "":
+		var pm: String = u.pose_mode
+		var pp: float = u.pose_push
+		if pm == "lock":
+			r_sx = -1.45 + 0.08 * sin(u.anim_t * 38.0)
+			r_sy = 0.3 * u.pose_side
+			r_el = -0.55
+			l_sx = -1.3
+			l_el = -1.0
+			pitch = 0.18 + 0.3 * pp
+			twist = 0.12 * u.pose_side
+			roll = sin(u.anim_t * 44.0) * 0.035
+			head_extra = 0.1
+			u.body.position.z = lerpf(u.body.position.z, 0.28 * pp, 0.3)
+		elif pm == "kneel" or pm == "bow":
+			pitch = 0.45 if pm == "kneel" else 0.85
+			head_extra = 0.5 if pm == "kneel" else 0.7
+			r_sx = 0.15 if pm == "kneel" else -0.55
+			l_sx = 0.15 if pm == "kneel" else -0.55
+			r_el = -0.3
+			l_el = -0.3
+			u.arm.visible = false
+			head_yaw = 0.0
+		elif pm == "held":
+			# marched off by two guards: arms pulled out wide, head bowed
+			pitch = 0.3
+			head_extra = 0.65
+			r_sx = -0.15
+			l_sx = -0.15
+			r_sz = 1.25
+			l_sz = -1.25
+			r_el = -0.25
+			l_el = -0.25
+			u.arm.visible = false
+		elif pm == "grip":
+			# guard: the arm nearest the prisoner reaches out and grabs his wrist
+			var gs: float = u.pose_side
+			if gs > 0.0:
+				r_sx = -1.0
+				r_sy = -0.55
+				r_el = -0.6
+			else:
+				l_sx = -1.0
+				l_sy = 0.55
+				l_el = -0.6
+		elif pm == "sheath":
+			# plants the sword point-down in the ground
+			r_sx = -0.05
+			r_el = -0.05
+			pitch = 0.08
+			head_extra = 0.1
 	# ---- directional hit reaction: recoil away from the blow, head snaps, body shoved back
 	var hx: float = u.hit_dir.x
 	var hz: float = u.hit_dir.y
@@ -365,13 +605,13 @@ static func animate(u, dt: float) -> void:
 	torso.rotation.x = lerpf(torso.rotation.x, pitch, kk2)
 	torso.rotation.y = lerpf(torso.rotation.y, twist, kk2)
 	torso.rotation.z = lerpf(torso.rotation.z, roll, k)
-	head.rotation.x = lerpf(head.rotation.x, -pitch * 0.6 + 0.18 * hit * hz, k)
+	head.rotation.x = lerpf(head.rotation.x, -pitch * 0.6 + 0.18 * hit * hz + head_extra, k)
 	var look: float = sin(u.anim_t * 0.8 + u.gphase) * 0.18 * (1.0 - m)
-	head.rotation.y = lerpf(head.rotation.y, -twist * 0.7 + look, clampf(dt * 8.0, 0.0, 1.0))
+	head.rotation.y = lerpf(head.rotation.y, -twist * 0.7 + look + head_yaw, clampf(dt * 8.0, 0.0, 1.0))
 	var kk: float = clampf(dt * 18.0, 0.0, 1.0)
-	sh[0].rotation = sh[0].rotation.lerp(Vector3(r_sx, r_sy, 0.12), kk)
+	sh[0].rotation = sh[0].rotation.lerp(Vector3(r_sx, r_sy, r_sz), kk)
 	el[0].rotation.x = lerpf(el[0].rotation.x, r_el, kk)
-	sh[1].rotation = sh[1].rotation.lerp(Vector3(l_sx, 0.0, -0.1), kk)
+	sh[1].rotation = sh[1].rotation.lerp(Vector3(l_sx, l_sy, l_sz), kk)
 	el[1].rotation.x = lerpf(el[1].rotation.x, l_el, kk)
 	# lunge and knock-back of the whole body
 	var lz: float = step * (0.0 if archer else 1.0) - hz * 0.22 * u.stagger
@@ -401,10 +641,22 @@ static func animate(u, dt: float) -> void:
 				3:
 					tr.rotation = Vector3(-0.6, 0.0, 0.6)
 					tr.position = Vector3(0.1, 0.7, 1.0)
+				6:
+					tr.rotation = Vector3(0, PI * 0.5, 0.0)
+					tr.position = Vector3(0.0, 0.95, 1.0)
+				7:
+					tr.rotation = Vector3(0, PI * 0.5, 0.0)
+					tr.position = Vector3(0.0, 0.7, 0.9)
+				8:
+					tr.rotation = Vector3(0, PI * 0.5, 1.2)
+					tr.position = Vector3(0.1, 0.6, 1.1)
+				5, 10:
+					tr.rotation = Vector3(0, PI * 0.5, 0.0)
+					tr.position = Vector3(0.0, 0.5, 1.2)
 				_:
 					tr.rotation = Vector3(0, PI * 0.5, 0.5)
 					tr.position = Vector3(0.2, 0.7, 1.2)
-			tr.scale = Vector3.ONE * (1.35 if u.atk_style == 4 else 0.9)
+			tr.scale = Vector3.ONE * (1.35 if (u.atk_style == 4 or u.atk_style == 7) else 0.9)
 		else:
 			tr.visible = false
 	u.stagger = maxf(0.0, u.stagger - dt * 2.5)
@@ -417,7 +669,9 @@ static func animate_death(u, dt: float) -> void:
 	if rg.is_empty():
 		return
 	u.death_t += dt
-	var t: float = u.death_t
+	var t: float = u.death_t - u.death_delay
+	if t < 0.0:
+		return   # stand still until the king's blade arrives
 	var f: float = clampf(t / 0.55, 0.0, 1.0)
 	f = f * f
 	var body: Node3D = u.body
@@ -428,6 +682,39 @@ static func animate_death(u, dt: float) -> void:
 	var torso: Node3D = rg.torso
 	var hips: Node3D = rg.hips
 	match u.death_var:
+		3:
+			# run through the belly: fold over the blade, clutch the wound, drop to the knees, topple
+			var k3: float = clampf(t / 0.3, 0.0, 1.0)
+			torso.rotation.x = lerpf(torso.rotation.x, 1.15 * k3, 0.4)
+			sh[0].rotation = sh[0].rotation.lerp(Vector3(-0.7, 0.4, 0.5), 0.3)
+			sh[1].rotation = sh[1].rotation.lerp(Vector3(-0.7, -0.4, -0.5), 0.3)
+			el[0].rotation.x = lerpf(el[0].rotation.x, -1.6, 0.3)
+			el[1].rotation.x = lerpf(el[1].rotation.x, -1.6, 0.3)
+			if t > 0.35:
+				var k4: float = clampf((t - 0.35) / 0.35, 0.0, 1.0)
+				thighs[0].rotation.x = lerpf(thighs[0].rotation.x, -1.2 * k4, 0.4)
+				thighs[1].rotation.x = lerpf(thighs[1].rotation.x, -1.2 * k4, 0.4)
+				shins[0].rotation.x = lerpf(shins[0].rotation.x, 1.3 * k4, 0.4)
+				shins[1].rotation.x = lerpf(shins[1].rotation.x, 1.3 * k4, 0.4)
+				hips.position.y = lerpf(hips.position.y, 0.55 * k4, 0.4)
+			if t > 0.8:
+				var k5: float = clampf((t - 0.8) / 0.35, 0.0, 1.0)
+				body.rotation.x = lerpf(body.rotation.x, 1.5 * k5, 0.4)
+				body.position.y = lerpf(body.position.y, 0.3 * k5, 0.4)
+		4:
+			# beheaded: the head flies off, the body staggers a moment, then falls
+			if not u.head_off:
+				u.head_off = true
+				_pop_head(u)
+			var k6: float = clampf(t / 0.45, 0.0, 1.0)
+			sh[0].rotation = sh[0].rotation.lerp(Vector3(-1.6 + sin(t * 25.0) * 0.4, 0.5, 0.9), 0.3)
+			sh[1].rotation = sh[1].rotation.lerp(Vector3(-1.4 - sin(t * 25.0) * 0.4, -0.5, -0.9), 0.3)
+			torso.rotation.z = sin(t * 14.0) * 0.12 * (1.0 - k6)
+			if t > 0.45:
+				var k7: float = clampf((t - 0.45) / 0.4, 0.0, 1.0)
+				body.rotation.x = lerpf(body.rotation.x, -1.5 * k7, 0.4)
+				body.position.y = lerpf(body.position.y, 0.2 * k7, 0.4)
+				thighs[0].rotation.x = lerpf(thighs[0].rotation.x, -0.4, 0.2)
 		0:
 			body.rotation.x = lerpf(body.rotation.x, -1.5 * f, 0.5)
 			body.position.y = lerpf(body.position.y, 0.2 * f, 0.5)
@@ -458,6 +745,54 @@ static func animate_death(u, dt: float) -> void:
 	torso.rotation.x = lerpf(torso.rotation.x, 0.0, 0.2)
 	el[0].rotation.x = lerpf(el[0].rotation.x, -0.2, 0.2)
 	el[1].rotation.x = lerpf(el[1].rotation.x, -0.2, 0.2)
+
+
+# the loser's sword leaves his hand and clatters to the ground; returns the dropped copy
+static func drop_sword(u) -> Node3D:
+	var hand: Node3D = u.arm
+	var par: Node = u.get_parent()
+	if hand == null or par == null:
+		return null
+	var cp: Node3D = hand.duplicate()
+	par.add_child(cp)
+	cp.global_transform = hand.global_transform
+	hand.visible = false
+	var side := Vector3(sin(u.rotation.y + 1.2), 0, cos(u.rotation.y + 1.2))
+	var dest: Vector3 = u.position + side * 1.1 + Vector3(0, 0.07, 0)
+	var tw := cp.create_tween()
+	tw.tween_property(cp, "global_position", dest + Vector3(0, 0.9, 0), 0.18)
+	tw.parallel().tween_property(cp, "rotation", Vector3(PI * 0.5, u.rotation.y + 0.6, 0.0), 0.45)
+	tw.tween_property(cp, "global_position", dest, 0.22).set_ease(Tween.EASE_IN)
+	tw.tween_callback(func(): u.battle.sfx.play("clang", dest, 0.0, 0.8))
+	return cp
+
+
+static func _pop_head(u) -> void:
+	var head: Node3D = u.rg.head
+	var par: Node = u.get_parent()
+	if par == null:
+		return
+	var h: Node3D = head.duplicate()
+	par.add_child(h)
+	h.global_transform = head.global_transform
+	head.visible = false
+	var p0: Vector3 = h.global_position
+	var dir := Vector3(randf_range(-1.0, 1.0), 0, randf_range(-1.0, 1.0)).normalized() * randf_range(2.2, 3.4)
+	var spin := Vector3(randf_range(-9, 9), randf_range(-5, 5), randf_range(-9, 9))
+	var fly := func(x: float):
+		if is_instance_valid(h):
+			h.global_position = p0 + dir * x + Vector3(0, 4.2 * x * (1.0 - x) - 0.9 * x, 0)
+			h.rotation += spin * 0.016
+	var tw := h.create_tween()
+	tw.tween_method(fly, 0.0, 1.0, 0.7)
+	tw.tween_callback(func():
+		if is_instance_valid(h):
+			h.global_position.y = 0.2)
+	tw.tween_interval(3.0)
+	tw.tween_callback(func():
+		if is_instance_valid(h):
+			h.queue_free())
+	u.battle._burst(p0, Color(0.75, 0.08, 0.08), 12, 3.5, false)
 
 
 # ------------------------------------------------------------------ civilians: villagers, messenger, advisor, steward

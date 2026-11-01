@@ -95,12 +95,33 @@ var gait := 1.0
 var gphase := 0.0
 var rg_prev_swing := 0.0
 var atk_style := 0
+var combo := 0
+var pre_picked := false
+var hit_fx := 0
+var killer_style := -1
+var death_delay := 0.0
+var map_want := false
+var blocking := false
+var block_t := 0.0
+var kick_req := false
+var kick_cd := 0.0
+var kick_t := 0.0
+var focus_on := false
+var focus_tgt = null
+var clash_lock := false
+var pose_mode := ""
+var pose_push := 0.0
+var pose_side := 1.0
+var map_rot := Vector3(2.4, 0.0, 0.0)
+var map_t := 0.0
+var map_open := 0.0
 var stagger := 0.0
 var hit_dir := Vector2.ZERO
 var hit_from := Vector3.ZERO
 var role := ""
 var civ_role := ""
 var death_t := 0.0
+var head_off := false
 var death_var := 0
 var death_side := 1.0
 var hlegs := []
@@ -659,7 +680,7 @@ func _process(dt: float) -> void:
 			lunge = sin((1.0 - swing) * PI) * (0.35 if kind != "archer" else -0.08)
 		body.position.z = lerpf(body.position.z, lunge, clampf(dt * 18.0, 0.0, 1.0))
 	if swing > 0.0:
-		swing = maxf(0.0, swing - dt * (1.8 if (power or kind == "hero") else 2.4))
+		swing = maxf(0.0, swing - dt * ((1.35 if atk_style in [5, 6, 7, 9, 10] else 1.8) if (power or kind == "hero") else 2.4))
 		var s := 1.0 - swing
 		if not rigged:
 			arm.rotation.x = lerpf(-1.8, 1.0, s * s)
@@ -727,6 +748,8 @@ func _physics_process(dt: float) -> void:
 		return
 	_dt = dt
 	atk_cd -= dt
+	kick_cd -= dt
+	block_t += dt
 	buff_t -= dt
 	rally_cd -= dt
 	mount_cd -= dt
@@ -736,6 +759,9 @@ func _physics_process(dt: float) -> void:
 			return
 		loaded = null
 		visible = true
+	if clash_lock:
+		_stop()
+		return
 	if battle.freeze_others and kind != "hero":
 		_stop()
 		return
@@ -949,7 +975,7 @@ func _hero() -> void:
 			rotation.y = lerp_angle(rotation.y, aboard.rotation.y, clampf(_dt * 6.0, 0.0, 1.0))
 			sim_speed = 0.0
 			return
-	var s := spd()
+	var s := spd() * (0.5 if blocking else 1.0)
 	var mvl := move_in.length()
 	if mvl > 0.08:
 		_move(move_in.normalized(), s * minf(mvl, 1.0))
@@ -957,6 +983,38 @@ func _hero() -> void:
 		_stop()
 	var rng: float = KINDS.hero.range + (0.9 if mounted else 0.0)
 	var t = battle.nearest_enemy(self, rng + 0.6)
+	# FOCUS: lock on to one opponent, keep facing him whatever you do
+	if focus_on:
+		if focus_tgt == null or not is_instance_valid(focus_tgt) or focus_tgt.dead or focus_tgt.position.distance_to(position) > 22.0:
+			focus_tgt = battle.nearest_enemy(self, 20.0)
+		if focus_tgt != null:
+			var fd: Vector3 = focus_tgt.position - position
+			if fd.length() < rng + 0.6:
+				t = focus_tgt
+			_face(fd)
+	else:
+		focus_tgt = null
+	# KICK: a short leg strike that shoves and staggers
+	if kick_req:
+		kick_req = false
+		if kick_cd <= 0.0 and not blocking and swing <= 0.0:
+			kick_cd = 1.1
+			kick_t = 1.0
+			var kt = focus_tgt if (focus_on and focus_tgt != null) else battle.nearest_enemy(self, 3.0)
+			if kt != null and kt.position.distance_to(position) < 3.2:
+				rotation.y = atan2(kt.position.x - position.x, kt.position.z - position.z)
+				atk_style = 2
+				battle.melee_hit(self, kt, 14.0 * rank_mult(), true, false)
+				if kt.kind != "hero" or battle.duel_active:
+					var kd: Vector3 = kt.position - position
+					kd.y = 0.0
+					if kd.length() > 0.01:
+						kt.position += kd.normalized() * 0.9
+			battle.sfx.play("thud", position, -2.0, 0.8)
+	if blocking:
+		if t != null and mvl < 0.08:
+			_face(t.position - position)
+		return
 	if t != null:
 		if atk_cd <= 0.0:
 			if power_req:
@@ -1222,6 +1280,10 @@ func _strike(t, mult: float, pw: bool) -> void:
 	atk_cd = s.cd * (1.8 if pw else 1.0)
 	swing = 1.0
 	power = pw
+	if kind == "hero" and not pw:
+		atk_style = preload("res://game/rig.gd").HERO_SEQ[combo % preload("res://game/rig.gd").HERO_SEQ.size()]
+		combo += 1
+		pre_picked = true
 	var d: float = s.dmg * mult * (battle.kingdom.dmg_mult(team, kind) if battle.kingdom != null else 1.0)
 	if buff_t > 0.0:
 		d *= 1.35
@@ -1339,6 +1401,12 @@ func die() -> void:
 			death_side = 1.0 if randf() < 0.5 else -1.0
 			if kind == "hero":
 				death_var = 0
+			if killer_style >= 0:
+				death_delay = 0.3
+				if killer_style == 6:
+					death_var = 4
+				elif killer_style == 5 or killer_style == 10:
+					death_var = 3
 			tw.kill()
 		else:
 			tw.tween_property(body, "rotation:x", -1.5, 0.45)

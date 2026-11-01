@@ -61,14 +61,18 @@ func _build_fort(t: int) -> void:
 	var b := -1.0                      # local z direction towards the back of the castle (root is rotated per kingdom)
 	var root: Node3D = battle.castle_roots[t]
 	var tc: Color = battle.team_col(t)
-	var stone := _m(Color(0.55, 0.53, 0.5), 0.95)
-	var stone_d := _m(Color(0.42, 0.4, 0.38), 0.95)
+	var CKit = load("res://game/castlekit.gd")
+	var CC: Dictionary = CKit.merged(load("res://game/profile.gd").castle) if t == battle.my_team else CKit.DEF
+	var stone := _m(CKit.WALL[int(CC.wall)], 0.95)
+	var stone_d := _m(CKit.WALL[int(CC.wall)].darkened(0.24), 0.95)
+	if t == battle.my_team and int(CC.banner) > 0:
+		tc = CKit.BANNER[int(CC.banner)]
 	var cloth := _m(tc, 0.8, 0.0, 0.5)
 	var gold_m := _m(Color(1.0, 0.78, 0.25), 0.9, 0.25, 0.3)
 	var wood := _m(Color(0.32, 0.2, 0.1), 0.9)
 	var cobble := _m(Color(0.5, 0.46, 0.4), 1.0)
 	var road := _m(Color(0.5, 0.4, 0.28), 1.0)
-	var roofm := _m(Color(0.34, 0.17, 0.12), 0.85)
+	var roofm := _m(CKit.ROOF[int(CC.roof)], 0.85)
 	var flame := _m(Color(1.0, 0.55, 0.15), 0.5, 0.0, 4.0)
 
 	# side + rear walls

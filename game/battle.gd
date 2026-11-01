@@ -1235,7 +1235,31 @@ func _ai_think(t: int) -> void:
 
 # ================================================================== combat (host)
 func melee_hit(a, t, dmg: float, pw: bool, charge: bool) -> void:
+	if t.kind == "hero" and t.blocking and not t.dead:
+		var toa: Vector3 = a.position - t.position
+		toa.y = 0.0
+		var fwd := Vector3(sin(t.rotation.y), 0, cos(t.rotation.y))
+		if toa.length() > 0.01 and fwd.dot(toa.normalized()) > 0.15:
+			if t.block_t < 0.35:
+				# timed block = PARRY: the attacker reels and is open for a moment
+				a.stagger = 1.0
+				a.atk_cd = maxf(a.atk_cd, 0.0) + 1.3
+				a.swing = 0.0
+				dmg = 0.0
+				_burst(t.position + fwd * 0.8 + Vector3(0, 1.3, 0), Color(1.0, 0.9, 0.4), 12, 4.0, true)
+				sfx.play("clang", t.position, 2.0, 1.4)
+				if t.owner_id == my_id:
+					_toast("PARRY!", 0.8)
+			else:
+				dmg *= 0.15
+				pw = false
+				charge = false
+				_burst(t.position + fwd * 0.8 + Vector3(0, 1.2, 0), Color(0.9, 0.9, 1.0), 6, 3.0, true)
+				sfx.play("clang", t.position, -2.0, 0.9)
+			if dmg <= 0.0:
+				return
 	t.hit_from = a.position
+	t.killer_style = a.atk_style if a.kind == "hero" else -1
 	if pw or charge:
 		t.stagger = 1.0
 	t.take_damage(dmg)
@@ -1563,6 +1587,17 @@ func _do_action(owner: int, act: String, arg: int) -> void:
 				h.set_mounted(not h.mounted)
 		"power":
 			h.power_req = true
+		"block":
+			if arg == 1 and not h.blocking:
+				h.block_t = 0.0
+			h.blocking = arg == 1
+		"kick":
+			h.kick_req = true
+		"focus":
+			h.focus_on = not h.focus_on
+			h.focus_tgt = null
+			if owner == my_id and hud.has("focus"):
+				hud.focus.bg.color = Color(0.8, 0.5, 0.1, 0.85) if h.focus_on else Color(0.2, 0.12, 0.06, 0.7)
 		"rally":
 			if h.rally_cd <= 0.0:
 				h.rally_cd = 25.0
@@ -2058,6 +2093,11 @@ func _build_hud() -> void:
 	if not HORSE_RIDING:
 		hud.mount.bg.color = Color(0.12, 0.12, 0.12, 0.6)
 		hud.mount.lbl.add_theme_color_override("font_color", Color(0.65, 0.65, 0.65))
+	hud["kick"] = _tbtn(tl, "KICK", Vector2(vs.x - 395 * u, vs.y - 120 * u), Vector2(96, 96) * u, func(): _act("kick"), 20, "boot", true)
+	hud["focus"] = _tbtn(tl, "FOCUS", Vector2(vs.x - 395 * u, vs.y - 226 * u), Vector2(96, 96) * u, func(): _act("focus"), 20, "target", true)
+	var blk := _tbtn(tl, "BLOCK", Vector2(vs.x - 160 * u, vs.y - 290 * u), Vector2(100, 100) * u, func(): _act("block", 1), 20, "shield", true)
+	blk.btn.released.connect(func(): _act("block", 0))
+	hud["block"] = blk
 	hud["rally"] = _tbtn(tl, "RALLY", Vector2(vs.x - 290 * u, vs.y - 230 * u), Vector2(100, 100) * u, func(): _rally_press(), 22, "flag", true)
 	var gx := vs.x - 214 * u
 	var names := ["", "", ""]

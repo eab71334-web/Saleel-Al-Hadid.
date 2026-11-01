@@ -85,7 +85,8 @@ func _http_get(path: String, cb: Callable) -> void:
 	h.timeout = 70.0   # a sleeping free Render server needs ~50 s to wake up
 	add_child(h)
 	h.request_completed.connect(func(_r, code, _hd, body):
-		cb.call(code, JSON.parse_string(body.get_string_from_utf8()))
+		var txt: String = body.get_string_from_utf8()
+		cb.call(code, JSON.parse_string(txt) if txt.strip_edges() != "" else null)
 		h.queue_free())
 	if h.request(base_url + path) != OK:
 		h.queue_free()
@@ -96,7 +97,8 @@ func _http_post(path: String, data: Dictionary, cb: Callable) -> void:
 	h.timeout = 70.0
 	add_child(h)
 	h.request_completed.connect(func(_r, code, _hd, body):
-		cb.call(code, JSON.parse_string(body.get_string_from_utf8()))
+		var txt: String = body.get_string_from_utf8()
+		cb.call(code, JSON.parse_string(txt) if txt.strip_edges() != "" else null)
 		h.queue_free())
 	if h.request(base_url + path, ["Content-Type: application/json"], HTTPClient.METHOD_POST, JSON.stringify(data)) != OK:
 		h.queue_free()
