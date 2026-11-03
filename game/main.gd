@@ -12,6 +12,7 @@ const TouchScrollS := preload("res://game/touchscroll.gd")
 const IntroS := preload("res://game/intro.gd")
 const Lobby3DS := preload("res://game/lobby3d.gd")
 const MainMenuS := preload("res://game/mainmenu.gd")
+const PlayScreenS := preload("res://game/playscreen.gd")
 const SplashS := preload("res://game/splash.gd")
 const MusicLibS := preload("res://game/music.gd")
 const MenuBgS := preload("res://game/menubg.gd")
@@ -449,25 +450,45 @@ func _show_throne() -> void:
 
 
 
+func _lobby_base() -> void:
+	for c in ui.get_children():
+		ui.remove_child(c)
+		if c != _lobby:
+			c.queue_free()
+	if _lobby == null:
+		_lobby = Lobby3DS.new()
+	else:
+		_lobby.refresh()
+	ui.add_child(_lobby)
+
+
 func _show_play() -> void:
-	var vb := _clear()
-	_title(vb, "Choose your game")
-	var cards := CardsS.new()
-	cards.custom_minimum_size = Vector2(1000, 430)
-	cards.cards = [
-		{"id": "battle", "title": "Solo Battle", "desc": "Command your army against the enemy", "art": "battle"},
-		{"id": "kingdom", "title": "Solo Kingdom", "desc": "Build a castle city, then rule or conquer", "art": "kingdom"},
-	]
-	cards.chosen.connect(func(id):
+	_lobby_base()
+	var ps = PlayScreenS.new()
+	ps.main = self
+	ps.on_back = func(): _show_menu()
+	ps.on_pick = func(id: String):
+		if id == "world":
+			_show_world()
+			return
 		net.start_solo()
-		cfg.mode = String(id)
+		cfg.mode = id
 		_mode = "solo"
-		if String(id) == "kingdom":
+		if id == "kingdom":
 			_show_king()
 		else:
-			_show_lobby(true))
-	vb.add_child(cards)
-	_fbutton("Back", func(): _show_menu())
+			_show_lobby(true)
+	ui.add_child(ps)
+	_fade_in()
+
+
+func _show_world() -> void:
+	if _menu_music != null:
+		_menu_music.stop()
+	ui_layer.visible = false
+	var w = load("res://game/world.gd").new()
+	w.main = self
+	add_child(w)
 
 
 func _show_local() -> void:
@@ -526,21 +547,30 @@ func _show_settings() -> void:
 		SettingsS.set_lang("en" if SettingsS.lang == "ar" else "ar")
 		SettingsS.apply_global()
 		_show_settings())
-	_button(vb, "Quality: %s" % SettingsS.quality_name(), func():
-		SettingsS.quality = (SettingsS.quality + 1) % 3
-		SettingsS.save()
-		_show_settings())
-	_button(vb, "Frame rate: %d" % SettingsS.fps, func():
-		SettingsS.fps = {30: 60, 60: 120, 120: 30}[SettingsS.fps]
-		SettingsS.save()
-		SettingsS.apply_global()
-		_show_settings())
+	_label(vb, "Device preset", 26, Color(0.85, 0.85, 0.9))
+	var pr := HBoxContainer.new()
+	pr.add_theme_constant_override("separation", 8)
+	vb.add_child(pr)
+	for i in SettingsS.PRESETS.size():
+		var pb := Button.new()
+		pb.text = String(SettingsS.PRESETS[i])
+		pb.custom_minimum_size = Vector2(0, 70)
+		pb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		pb.add_theme_font_size_override("font_size", 24)
+		pb.pressed.connect(func():
+			SettingsS.apply_preset(i)
+			_show_settings())
+		pr.add_child(pb)
+	for k in ["view", "scale", "fps", "shadows", "trees", "aa", "fx", "auto", "chars"]:
+		_button(vb, "%s: %s" % [String({"fps": "Frame rate", "scale": "Resolution", "view": "View distance", "shadows": "Shadows", "trees": "Trees", "aa": "Smooth edges", "fx": "Effects (glow, haze)", "auto": "Auto quality", "chars": "Characters"}[k]), SettingsS.opt_text(k)], func():
+			SettingsS.cycle(k)
+			_show_settings())
 	_button(vb, "FPS counter: %s" % ("ON" if SettingsS.show_fps else "OFF"), func():
 		SettingsS.show_fps = not SettingsS.show_fps
 		SettingsS.save()
 		_show_settings())
 	_button(vb, "Gift code", func(): _show_code())
-	_label(vb, "Low = fastest. Use it if the game is slow or the phone gets hot.", 22, Color(0.7, 0.7, 0.75))
+	_label(vb, "Weak phone? Choose Potato or Low. Auto quality lowers the resolution when the game gets slow.", 22, Color(0.7, 0.7, 0.75))
 	_fbutton("Back", func(): _show_menu())
 	LocS.apply_tree(ui)
 

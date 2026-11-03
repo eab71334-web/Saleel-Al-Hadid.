@@ -442,6 +442,10 @@ static func animate(u, dt: float) -> void:
 			ltx = [-1.45, -1.45]
 			lkx = [1.55, 1.55]
 			hip_y = 0.46
+		"sit":
+			ltx = [-1.5, -1.5]
+			lkx = [1.5, 1.5]
+			hip_y = 0.62
 		"lock":
 			ltx = [-0.55, 0.6]
 			lkx = [0.55, 0.3]
@@ -552,6 +556,15 @@ static func animate(u, dt: float) -> void:
 			roll = sin(u.anim_t * 44.0) * 0.035
 			head_extra = 0.1
 			u.body.position.z = lerpf(u.body.position.z, 0.28 * pp, 0.3)
+		elif pm == "sit":
+			pitch = -0.05
+			head_extra = 0.0
+			r_sx = -0.35
+			l_sx = -0.35
+			r_sz = 0.25
+			l_sz = -0.25
+			r_el = -1.25
+			l_el = -1.25
 		elif pm == "kneel" or pm == "bow":
 			pitch = 0.45 if pm == "kneel" else 0.85
 			head_extra = 0.5 if pm == "kneel" else 0.7

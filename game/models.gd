@@ -9,14 +9,15 @@ extends RefCounted
 # you can add models one at a time.  Animations are retargeted by bone name
 # (best with Mixamo characters + Mixamo animations, "In Place" ticked).
 
+const SettingsS := preload("res://game/settings.gd")
 const MODEL_DIR := "res://game/models/"
 const ANIM_DIR := "res://game/anims/"
 const EXTS := [".glb", ".gltf", ".fbx", ".tscn"]
 
 # Tuning: final height of each model in metres.
-const HEIGHTS := {"sword": 1.8, "archer": 1.8, "cav": 1.8, "hero": 2.1, "horse": 1.7, "villager": 1.7}
+const HEIGHTS := {"sword": 1.8, "archer": 1.8, "cav": 1.8, "hero": 2.1, "horse": 2.0, "villager": 1.7}
 # How high the rider sits when a custom horse model is used.
-const HORSE_RIDE_Y := 0.95
+const HORSE_RIDE_Y := 0.82
 
 const KEYS := {
 	"idle": ["idle", "stand", "breath"],
@@ -59,6 +60,8 @@ static func available_kinds() -> Array:
 # Returns null (use procedural model) or a rig dictionary:
 #   {root: Node3D, player: AnimationPlayer|null, names: {logical: anim name}, cur: String}
 static func build(kind: String):
+	if SettingsS.s_chars == 0:
+		return null
 	var path := find_file(MODEL_DIR, kind)
 	if path == "":
 		return null

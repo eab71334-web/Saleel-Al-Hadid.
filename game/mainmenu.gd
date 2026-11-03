@@ -30,6 +30,7 @@ var play_btn: Button
 var right: VBoxContainer
 var intro_items: Array = []
 var busy := false
+var instant := false         # true: buttons run their action at once (in-game HUD)
 
 
 func _ready() -> void:
@@ -233,13 +234,14 @@ func _mbtn(id: String, text: String, icon: String, size: Vector2, font: int, acc
 	cont.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	b.add_child(cont)
 	var isz: int = int(size.y * (0.42 if vertical else 0.56))
-	var tr := TextureRect.new()
-	tr.texture = UiFx.icon(icon, isz)
-	tr.custom_minimum_size = Vector2(isz, isz)
-	tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	tr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	tr.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	cont.add_child(tr)
+	if icon != "":
+		var tr := TextureRect.new()
+		tr.texture = UiFx.icon(icon, isz)
+		tr.custom_minimum_size = Vector2(isz, isz)
+		tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		tr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		tr.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		cont.add_child(tr)
 	var l := _lbl(cont, text, font, Color(1, 0.96, 0.85) if not accent else Color(1, 1, 0.92))
 	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART if vertical else TextServer.AUTOWRAP_OFF
 	l.custom_minimum_size = Vector2(size.x - 24 if vertical else 0, 0)
@@ -254,6 +256,11 @@ func _mbtn(id: String, text: String, icon: String, size: Vector2, font: int, acc
 
 
 func _press(b: Button, id: String) -> void:
+	if instant:
+		Snd.play(self, "click", -6.0)
+		if actions.has(id):
+			(actions[id] as Callable).call()
+		return
 	if busy:
 		return
 	busy = true

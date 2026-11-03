@@ -21,6 +21,7 @@ const KINDS := {
 	"fisher": {"hp": 80.0, "speed": 5.0, "dmg": 0.0, "range": 0.0, "cd": 1.0},
 }
 const SHIPS := ["ship", "transport", "fisher"]
+const SiegeS := preload("res://game/siege.gd")
 const RANGED := ["archer", "ballista", "catapult", "ship"]
 
 const RigS := preload("res://game/rig.gd")
@@ -84,6 +85,11 @@ var sim_speed := 0.0
 var anim_t := 0.0
 var slot := Vector3.ZERO
 var flash := 0.0
+var _lod_acc := 0.0
+var _lod_n := 0
+var _yaw_prev := 0.0
+var _lean := 0.0
+var stagger := 0.0
 var sc := 1.0
 var body: Node3D
 var arm: Node3D
@@ -115,7 +121,6 @@ var pose_side := 1.0
 var map_rot := Vector3(2.4, 0.0, 0.0)
 var map_t := 0.0
 var map_open := 0.0
-var stagger := 0.0
 var hit_dir := Vector2.ZERO
 var hit_from := Vector3.ZERO
 var role := ""
@@ -324,37 +329,9 @@ func _build() -> void:
 
 func _build_siege(tc: Color) -> void:
 	sc = 1.0
-	var wood := _mat(Color(0.47, 0.31, 0.15), 0.0, 0.9)
-	var dwood := _mat(Color(0.3, 0.19, 0.1), 0.0, 0.9)
-	var iron := _mat(Color(0.55, 0.56, 0.6), 0.8, 0.4)
-	var cloth := _mat(tc, 0.0, 0.8)
-	for sx in [-0.8, 0.8]:
-		_add(body, _cyl(0.5, 0.14), dwood, Vector3(sx, 0.5, 0), Vector3(0, 0, PI / 2.0), true)
-		_add(body, _cyl(0.1, 0.18), iron, Vector3(sx, 0.5, 0), Vector3(0, 0, PI / 2.0))
-	_add(body, _box(Vector3(1.7, 0.12, 0.12)), dwood, Vector3(0, 0.5, 0))
-	_add(body, _box(Vector3(1.1, 0.22, 2.4)), wood, Vector3(0, 0.82, 0), Vector3.ZERO, true)
-	arm = Node3D.new()
-	body.add_child(arm)
-	if kind == "ballista":
-		_add(body, _box(Vector3(0.2, 0.2, 2.6)), wood, Vector3(0, 1.1, 0.2), Vector3.ZERO, true)
-		_add(body, _box(Vector3(2.5, 0.12, 0.16)), dwood, Vector3(0, 1.22, 1.1), Vector3.ZERO, true)
-		_add(body, _box(Vector3(0.03, 0.03, 1.1)), _mat(Color(0.9, 0.9, 0.8)), Vector3(0.0, 1.22, 0.55))
-		_add(body, _box(Vector3(0.12, 0.5, 0.12)), dwood, Vector3(0, 1.0, -0.6))
-		arm.position = Vector3(0, 1.24, 0.1)
-		_add(arm, _box(Vector3(0.07, 0.07, 1.6)), iron, Vector3(0, 0, 0.9))
-		_add(arm, _box(Vector3(0.16, 0.16, 0.3)), iron, Vector3(0, 0, 1.75))
-		_add(body, _box(Vector3(0.6, 0.45, 0.04)), cloth, Vector3(0, 1.6, -0.75))
-	else:
-		_add(body, _box(Vector3(0.18, 1.5, 0.18)), dwood, Vector3(-0.45, 1.5, -0.2), Vector3.ZERO, true)
-		_add(body, _box(Vector3(0.18, 1.5, 0.18)), dwood, Vector3(0.45, 1.5, -0.2), Vector3.ZERO, true)
-		_add(body, _box(Vector3(1.1, 0.14, 0.14)), wood, Vector3(0, 2.2, -0.2))
-		arm.position = Vector3(0, 2.1, -0.2)
-		_add(arm, _box(Vector3(0.2, 0.2, 3.6)), wood, Vector3(0, 0, 1.0), Vector3.ZERO, true)
-		_add(arm, _sph(0.45), _mat(Color(0.35, 0.33, 0.3)), Vector3(0, 0.3, 2.7))
-		_add(arm, _box(Vector3(0.7, 0.6, 0.6)), iron, Vector3(0, -0.2, -0.8))
-		_add(body, _box(Vector3(0.6, 0.45, 0.04)), cloth, Vector3(0, 2.7, -0.2))
+	SiegeS.build(self, tc)
 	_make_bar(false)
-	bar.position.y = 3.2
+	bar.position.y = 6.4 if kind == "catapult" else 3.8
 
 
 func _build_boat(tc: Color) -> void:
@@ -661,7 +638,22 @@ func _process(dt: float) -> void:
 	body.position.y = (ride_y if mounted else 0.0) + (absf(ph) * 0.05 if (mv and rig == null and not rigged) else 0.0)
 	body.scale = Vector3.ONE * sc * (1.0 + flash * 0.1)
 	if rigged:
-		RigS.animate(self, dt)
+		# animation level of detail: far-away soldiers animate at a lower rate (saves CPU on big armies)
+		var cam := get_viewport().get_camera_3d()
+		var dist: float = position.distance_to(cam.global_position) if cam != null else 0.0
+		var skip: int = 0 if (dist < 70.0 or kind == "hero") else (2 if dist < 130.0 else 5)
+		_lod_acc += dt
+		_lod_n += 1
+		if _lod_n > skip or swing > 0.0:
+			_lod_n = 0
+			RigS.animate(self, _lod_acc)
+			_lod_acc = 0.0
+		# turning leans the body into the curve; a hit staggers it backwards
+		var yaw_rate: float = wrapf(rotation.y - _yaw_prev, -PI, PI) / maxf(dt, 0.0001)
+		_yaw_prev = rotation.y
+		_lean = lerpf(_lean, clampf(-yaw_rate * 0.05, -0.18, 0.18) * clampf(sim_speed / 5.0, 0.0, 1.0), clampf(dt * 6.0, 0.0, 1.0))
+		body.rotation.z = _lean
+		body.rotation.x = lerpf(body.rotation.x, -stagger * 0.35, clampf(dt * 16.0, 0.0, 1.0))
 	elif rig == null and not is_ship and kind != "villager" and cape != null or (rig == null and kind == "archer"):
 		var run: float = clampf(sim_speed / 6.0, 0.0, 1.0)
 		var breathe := sin(anim_t * 1.6) * 0.012
@@ -679,6 +671,8 @@ func _process(dt: float) -> void:
 		if swing > 0.0:
 			lunge = sin((1.0 - swing) * PI) * (0.35 if kind != "archer" else -0.08)
 		body.position.z = lerpf(body.position.z, lunge, clampf(dt * 18.0, 0.0, 1.0))
+	if kind == "catapult" or kind == "ballista":
+		SiegeS.animate(self, dt)
 	if swing > 0.0:
 		swing = maxf(0.0, swing - dt * ((1.35 if atk_style in [5, 6, 7, 9, 10] else 1.8) if (power or kind == "hero") else 2.4))
 		var s := 1.0 - swing
@@ -1224,6 +1218,26 @@ func _siege() -> bool:
 		return false
 	var l: Vector3 = battle.wl(ft, position)
 	var reach: float = KINDS[kind].range * 0.7 if ranged else 3.2
+	var k = battle.kingdom
+	var gb: bool = k.gate_broken[ft]
+	# the gate is the weak point: aim at it until it breaks, then storm in
+	var aimx: float = clampf(l.x, -3.5, 3.5) if not gb else clampf(l.x, -30.0, 30.0)
+	if gb and not ranged:
+		if l.z > -76.0:
+			_goto(battle.lw(ft, Vector3(0, 0, -82.0)), 1.0)
+			return true
+		if absf(l.z + 100.0) > 3.0 or absf(l.x) > 6.0:
+			_goto(battle.lw(ft, Vector3(clampf(l.x, -6.0, 6.0), 0, -97.5)), 1.0)
+			return true
+		_stop()
+		_face(battle.rotv(ft, Vector3(0, 0, -1)))
+		if atk_cd <= 0.0:
+			var s2: Dictionary = KINDS[kind]
+			atk_cd = s2.cd
+			swing = 1.0
+			power = false
+			battle.castle_hit(self, s2.dmg * (1.35 if buff_t > 0.0 else 1.0) * k.dmg_mult(team, kind))
+		return true
 	if absf(l.z + 71.5) <= reach and absf(l.x) < 35.0 and l.z < -60.0:
 		_stop()
 		_face(battle.rotv(ft, Vector3(0, 0, -1)))
@@ -1238,11 +1252,11 @@ func _siege() -> bool:
 			elif kind == "ballista":
 				d *= 1.5
 			if ranged:
-				battle.siege_shot(self, battle.lw(ft, Vector3(clampf(l.x, -30.0, 30.0), 3.0, -72.0)))
+				battle.siege_shot(self, battle.lw(ft, Vector3(aimx, 3.0, -72.0)))
 			battle.castle_hit(self, d)
 		return true
 	var off: float = (reach - 1.0) if ranged else 1.4
-	_goto(battle.lw(ft, Vector3(clampf(l.x, -30.0, 30.0), 0, -71.5 + off)), 1.0)
+	_goto(battle.lw(ft, Vector3(aimx, 0, -71.5 + off)), 1.0)
 	return true
 
 
