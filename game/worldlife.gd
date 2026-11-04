@@ -1472,6 +1472,12 @@ func open_realm() -> void:
 	lines.append("%s: %d    %s: %d" % [T("Monthly payers"), income, T("Raiders now"), raiders.size()])
 	var btns: Array = []
 	btns.append([T("Quests and upgrade"), "level", func(): world.hud.open_castle()])
+	var GS = preload("res://game/gearsave.gd")
+	GS.load_it()
+	if GS.sword_lv < GS.MAX_LV:
+		btns.append([T("Forge: lengthen and strengthen sword") + " (%d)" % GS.cost(), "sword", func(): forge_sword(), true])
+	else:
+		lines.append(T("Your sword is fully forged"))
 	btns.append([T("Recruit soldier") + " (40/10)", "army", func(): recruit(), true])
 	btns.append([T("Soldiers follow me"), "boot", func(): set_all_mode("follow"); toast(T("Soldiers follow you")), true])
 	btns.append([T("Soldiers hold the castle"), "shield", func(): set_all_mode("garrison"); toast(T("Soldiers hold the castle")), true])
@@ -1487,6 +1493,23 @@ func open_realm() -> void:
 	btns.append([T("Graphics settings"), "gear", func(): world.hud.open_settings()])
 	btns.append([T("Close"), "gear", func(): pass])
 	world.hud.dialog(T("Your Realm"), lines, btns, 2, func(): open_realm())
+
+
+func forge_sword() -> void:
+	var GS = preload("res://game/gearsave.gd")
+	GS.load_it()
+	if GS.sword_lv >= GS.MAX_LV:
+		return
+	if world.level < 2 + GS.sword_lv:
+		toast(T("Forge: castle level") + " %d" % (2 + GS.sword_lv))
+		return
+	if world.res.gold < GS.cost():
+		toast(T("Not enough resources"))
+		return
+	world.res.gold -= GS.cost()
+	GS.sword_lv += 1
+	GS.save_it()
+	toast(T("Your sword grows longer and stronger"))
 
 
 func pick_portrait() -> void:

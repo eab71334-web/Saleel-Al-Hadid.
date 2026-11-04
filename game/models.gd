@@ -26,8 +26,12 @@ const KEYS := {
 	"attack": ["attack", "slash", "strike", "swing", "shoot", "punch", "hit"],
 	"die": ["die", "death", "dead", "fall"],
 	"ride": ["ride", "sit", "horse"],
+	"turnl": ["turn_left"],
+	"turnr": ["turn_right"],
+	"react": ["react"],
+	"block": ["block"],
 }
-const LOOPED := ["idle", "walk", "run", "ride"]
+const LOOPED := ["idle", "walk", "run", "ride", "turnl", "turnr"]
 const FALLBACK := {
 	"idle": ["idle"],
 	"walk": ["walk", "run", "idle"],
@@ -35,6 +39,10 @@ const FALLBACK := {
 	"ride": ["ride", "idle"],
 	"attack": ["attack"],
 	"die": ["die"],
+	"turnl": ["turnl", "walk", "idle"],
+	"turnr": ["turnr", "walk", "idle"],
+	"react": ["react"],
+	"block": ["block"],
 }
 
 static var _prep := {}
@@ -59,10 +67,22 @@ static func available_kinds() -> Array:
 
 # Returns null (use procedural model) or a rig dictionary:
 #   {root: Node3D, player: AnimationPlayer|null, names: {logical: anim name}, cur: String}
-static func build(kind: String):
+static func variant_count(kind: String) -> int:
+	var n := 0
+	for i in 6:
+		if find_file(MODEL_DIR, kind if i == 0 else kind + str(i + 1)) != "":
+			n += 1
+		else:
+			break
+	return n
+
+
+static func build(kind: String, variant := 0):
 	if SettingsS.s_chars == 0:
 		return null
-	var path := find_file(MODEL_DIR, kind)
+	var path := find_file(MODEL_DIR, kind if variant <= 0 else kind + str(variant + 1))
+	if path == "":
+		path = find_file(MODEL_DIR, kind)
 	if path == "":
 		return null
 	var res = load(path)
@@ -159,6 +179,18 @@ static func _prepare(kind: String, ap: AnimationPlayer, skel: Skeleton3D) -> Dic
 			if hit:
 				names[logical] = String(nm)
 				break
+	var atk := []
+	var dies := []
+	for nm in list:
+		var lw := String(nm).to_lower()
+		if lw.begins_with("attack"):
+			atk.append(String(nm))
+		elif lw.begins_with("die"):
+			dies.append(String(nm))
+	if atk.size() > 1:
+		names["_attack"] = atk
+	if dies.size() > 1:
+		names["_die"] = dies
 	for logical in LOOPED:
 		if names.has(logical):
 			var a := ap.get_animation(names[logical])
@@ -267,7 +299,7 @@ static func has_anim(rig: Dictionary, logical: String) -> bool:
 
 
 static func busy(rig: Dictionary) -> bool:
-	return rig.cur == "attack" and rig.player != null and rig.player.is_playing()
+	return (rig.cur == "attack" or rig.cur == "react" or rig.cur == "block") and rig.player != null and rig.player.is_playing()
 
 
 # Plays `logical` (with fallbacks) and returns the logical name actually used ("" if none).
@@ -279,7 +311,12 @@ static func play(rig: Dictionary, logical: String, restart := false) -> String:
 		if rig.names.has(cand):
 			if rig.cur != cand or restart:
 				rig.cur = cand
-				ap.play(rig.names[cand], 0.15)
+				var nm: String = rig.names[cand]
+				if cand == "attack" and rig.names.has("_attack"):
+					nm = rig.names["_attack"][randi() % rig.names["_attack"].size()]
+				elif cand == "die" and rig.names.has("_die"):
+					nm = rig.names["_die"][randi() % rig.names["_die"].size()]
+				ap.play(nm, 0.12 if cand in ["attack", "react", "block"] else 0.18)
 				ap.speed_scale = 1.0
 			return cand
 	return ""

@@ -108,6 +108,8 @@ var killer_style := -1
 var death_delay := 0.0
 var map_want := false
 var blocking := false
+var has_shield := true
+var sword_lv := 0
 var block_t := 0.0
 var kick_req := false
 var kick_cd := 0.0
@@ -256,7 +258,7 @@ func _build() -> void:
 	if is_ship:
 		_build_ship(tc)
 		return
-	var custom = Models.build(kind)
+	var custom = Models.build(kind, randi() % maxi(1, Models.variant_count(kind)))
 	if custom != null:
 		rig = custom
 		sc = 1.0
@@ -266,6 +268,7 @@ func _build() -> void:
 		arm = Node3D.new()
 		body.add_child(arm)
 		_make_bar(hero)
+		set_gear()
 		return
 
 	RigS.build(self, tc, hero)
@@ -423,7 +426,7 @@ func _build_villager(tc: Color) -> void:
 	var straw := _mat(Color(0.85, 0.72, 0.35), 0.0, 0.95)
 	var wood := _mat(Color(0.45, 0.3, 0.15), 0.0, 0.9)
 	var red := _mat(Color(0.95, 0.3, 0.12), 0.5, 0.0, 0.6)
-	var custom = Models.build("villager")
+	var custom = Models.build("villager", randi() % maxi(1, Models.variant_count("villager")))
 	if custom != null:
 		rig = custom
 		sc = 1.0
@@ -692,10 +695,21 @@ func _process(dt: float) -> void:
 		bar_mat.albedo_color = Color(1.0 - r, r, 0.15)
 
 
+var _ym_prev := 0.0
+var _fl_prev := 0.0
+var _yaw_rate := 0.0
+
+
 func _model_anim() -> void:
 	if rig != null:
+		var dtm: float = maxf(get_process_delta_time(), 0.0001)
+		_yaw_rate = lerpf(_yaw_rate, wrapf(rotation.y - _ym_prev, -PI, PI) / dtm, clampf(dtm * 8.0, 0.0, 1.0))
+		_ym_prev = rotation.y
 		if swing > 0.9 and _sw_prev <= 0.9 and Models.has_anim(rig, "attack"):
 			Models.play(rig, "attack", true)
+		elif flash > 0.95 and _fl_prev <= 0.95 and swing <= 0.0 and not mounted and Models.has_anim(rig, "react"):
+			Models.play(rig, "react", true)
+		_fl_prev = flash
 		if not Models.busy(rig):
 			var want := "idle"
 			if mounted:
@@ -704,6 +718,8 @@ func _model_anim() -> void:
 				want = "run"
 			elif sim_speed > 0.4:
 				want = "walk"
+			elif absf(_yaw_rate) > 1.0 and Models.has_anim(rig, "turnl"):
+				want = "turnl" if _yaw_rate > 0.0 else "turnr"
 			var used: String = Models.play(rig, want)
 			if used == "walk":
 				rig.player.speed_scale = clampf(sim_speed / 4.2, 0.6, 1.8)
@@ -1299,6 +1315,8 @@ func _strike(t, mult: float, pw: bool) -> void:
 		combo += 1
 		pre_picked = true
 	var d: float = s.dmg * mult * (battle.kingdom.dmg_mult(team, kind) if battle.kingdom != null else 1.0)
+	if kind == "hero" and sword_lv > 0:
+		d *= 1.0 + 0.3 * sword_lv
 	if buff_t > 0.0:
 		d *= 1.35
 	var charge := (kind == "cav" or (kind == "hero" and mounted)) and sim_speed > 6.0
@@ -1366,9 +1384,30 @@ func rank_mult() -> float:
 	return 1.0 + 0.1 * float(rank_lv)
 
 
+func set_gear() -> void:
+	if rig == null:
+		return
+	var sh = rig.root.find_child("Shield", true, false)
+	if sh != null:
+		sh.visible = has_shield
+	for i in 3:
+		var sw = rig.root.find_child("Sword%d" % i, true, false)
+		if sw != null:
+			sw.visible = (i == sword_lv)
+
+
+func toggle_shield() -> void:
+	has_shield = not has_shield
+	if not has_shield:
+		blocking = false
+	set_gear()
+
+
 func take_damage(a: float) -> void:
 	if dead:
 		return
+	if kind == "hero" and not has_shield:
+		a *= 1.2
 	if battle != null and battle.kingdom != null:
 		a *= battle.kingdom.armor_mult(team, kind)
 	hp -= a

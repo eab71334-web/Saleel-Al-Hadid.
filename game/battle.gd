@@ -1,6 +1,7 @@
 extends Node3D
 # Battle: world, armies, AI commander, camera, HUD, effects, host-authoritative networking.
 
+const GearSave := preload("res://game/gearsave.gd")
 const UiFx := preload("res://game/uifx.gd")
 const UnitS := preload("res://game/unit.gd")
 const SiegeS := preload("res://game/siege.gd")
@@ -727,6 +728,10 @@ func _make_unit(kind: String, team: int, owner: int, pos: Vector3, id := -1):
 	u.position = pos
 	add_child(u)
 	u.setup(kind, team, owner, self)
+	if kind == "hero" and owner == my_id:
+		GearSave.load_it()
+		u.sword_lv = GearSave.sword_lv
+		u.set_gear()
 	u.rotation.y = ang(team)
 	u.tpos = pos
 	u.tyaw = u.rotation.y
@@ -1244,7 +1249,7 @@ func _ai_think(t: int) -> void:
 
 # ================================================================== combat (host)
 func melee_hit(a, t, dmg: float, pw: bool, charge: bool) -> void:
-	if t.kind == "hero" and t.blocking and not t.dead:
+	if t.kind == "hero" and t.blocking and t.has_shield and not t.dead:
 		var toa: Vector3 = a.position - t.position
 		toa.y = 0.0
 		var fwd := Vector3(sin(t.rotation.y), 0, cos(t.rotation.y))
@@ -1598,7 +1603,13 @@ func _do_action(owner: int, act: String, arg: int) -> void:
 				h.set_mounted(not h.mounted)
 		"power":
 			h.power_req = true
+		"shield":
+			if arg == 2:
+				h.toggle_shield()
+				_toast("SHIELD ON" if h.has_shield else "SHIELD DROPPED", 0.8)
 		"block":
+			if not h.has_shield:
+				return
 			if arg == 1 and not h.blocking:
 				h.block_t = 0.0
 			h.blocking = arg == 1
@@ -2109,6 +2120,7 @@ func _build_hud() -> void:
 	var blk := _tbtn(tl, "BLOCK", Vector2(vs.x - 160 * u, vs.y - 290 * u), Vector2(100, 100) * u, func(): _act("block", 1), 20, "shield", true)
 	blk.btn.released.connect(func(): _act("block", 0))
 	hud["block"] = blk
+	_tbtn(tl, "SHIELD", Vector2(vs.x - 290 * u, vs.y - 340 * u), Vector2(90, 90) * u, func(): _act("shield", 2), 18, "shield", true)
 	hud["rally"] = _tbtn(tl, "RALLY", Vector2(vs.x - 290 * u, vs.y - 230 * u), Vector2(100, 100) * u, func(): _rally_press(), 22, "flag", true)
 	var gx := vs.x - 214 * u
 	var names := ["", "", ""]

@@ -160,10 +160,11 @@ class Model:
     def __init__(self, bones, parents, heads):
         self.bones = bones; self.parents = parents; self.heads = heads
         self.bidx = {b: i for i, b in enumerate(bones)}
-        self.prims = {}   # material -> dict of lists
-    def add(self, mat, V, F, color=(1, 1, 1), bone='root', smooth=True, wfn=None, uvscale=1.6, colfn=None):
+        self.prims = {}   # (part, material) -> dict of lists
+        self.part = None
+    def add(self, mat, V, F, color=(1, 1, 1), bone='root', smooth=True, wfn=None, uvscale=1.6, colfn=None, uvs=None, colors=None):
         V = np.array(V, float); F = np.array(F)
-        P = self.prims.setdefault(mat, dict(pos=[], nrm=[], uv=[], col=[], j=[], w=[], idx=[], n=0))
+        P = self.prims.setdefault((self.part, mat), dict(pos=[], nrm=[], uv=[], col=[], j=[], w=[], idx=[], n=0))
         if smooth:
             N = np.zeros_like(V)
             fn = np.cross(V[F[:, 1]] - V[F[:, 0]], V[F[:, 2]] - V[F[:, 0]])
@@ -180,6 +181,7 @@ class Model:
         for ax, (i, j) in enumerate([(2, 1), (0, 2), (0, 1)]):
             m = dom == ax; uv[m, 0] = VV[m, i]; uv[m, 1] = VV[m, j]
         uv *= uvscale
+        if uvs is not None and smooth: uv = np.array(uvs, float)
         n = len(VV)
         J = np.zeros((n, 4), np.uint16); W = np.zeros((n, 4), np.float32)
         if wfn is None:
@@ -189,7 +191,8 @@ class Model:
                 lst = wfn(VV[i])
                 for k, (b, w) in enumerate(lst[:4]): J[i, k] = self.bidx[b]; W[i, k] = w
         C = np.ones((n, 4), np.float32)
-        if colfn is None: C[:, :3] = color
+        if colors is not None and smooth: C[:, :3] = colors
+        elif colfn is None: C[:, :3] = color
         else:
             for i in range(n): C[i, :3] = colfn(VV[i])
         P['pos'].append(VV); P['nrm'].append(NN); P['uv'].append(uv); P['col'].append(C); P['j'].append(J); P['w'].append(W)
@@ -204,10 +207,10 @@ class Model:
             a = {'bufferView': len(views) - 1, 'componentType': comp, 'count': int(arr.shape[0]), 'type': typ}
             if mm: a['min'] = arr.min(axis=0).tolist(); a['max'] = arr.max(axis=0).tolist()
             acc.append(a); return len(acc) - 1
-        images = []; textures = []; materials = []; prims = []
+        images = []; textures = []; materials = []; prims = []; partprims = {}
         def tex(name):
             images.append({'uri': f'{texdir}/{name}.png'}); textures.append({'source': len(images) - 1, 'sampler': 0}); return len(textures) - 1
-        for mname, P in self.prims.items():
+        for (pname, mname), P in self.prims.items():
             pos = np.vstack(P['pos']).astype(np.float32); nrm = np.vstack(P['nrm']).astype(np.float32)
             uv = np.vstack(P['uv']).astype(np.float32); col = np.vstack(P['col']).astype(np.float32)
             J = np.vstack(P['j']); W = np.vstack(P['w']); idx = np.vstack(P['idx']).reshape(-1).astype(np.uint32)
@@ -220,7 +223,7 @@ class Model:
                     'metallicRoughnessTexture': {'index': tex(mname + '_mr')}, 'metallicFactor': 1.0, 'roughnessFactor': 1.0}
                 mat['normalTexture'] = {'index': tex(mname + '_n')}
             materials.append(mat)
-            prims.append({'attributes': att, 'indices': put(idx, 34963, 5125, 'SCALAR'), 'material': len(materials) - 1})
+            partprims.setdefault(pname, []).append({'attributes': att, 'indices': put(idx, 34963, 5125, 'SCALAR'), 'material': len(materials) - 1})
         bones = self.bones; bidx = self.bidx
         ib = []
         for b in bones:
@@ -234,8 +237,10 @@ class Model:
         for b in bones:
             ch = [bidx[c] for c in bones if self.parents[c] == b]
             if ch: nodes[bidx[b]]['children'] = ch
-        mesh_node = len(nodes); nodes.append({'name': 'Body', 'mesh': 0, 'skin': 0})
-        arm = len(nodes); nodes.append({'name': 'Armature', 'children': [bidx[bones[0]], mesh_node]})
+        meshes = []; mnodes = []
+        for pname, pl in partprims.items():
+            meshes.append({'primitives': pl}); mnodes.append(len(nodes)); nodes.append({'name': pname or 'Body', 'mesh': len(meshes) - 1, 'skin': 0})
+        arm = len(nodes); nodes.append({'name': 'Armature', 'children': [bidx[bones[0]]] + mnodes})
         anims = []
         for name, dur, fn_, loop in clips:
             n = int(dur * 30) + 1
@@ -257,7 +262,7 @@ class Model:
             channels.append({'sampler': len(samplers) - 1, 'target': {'node': bidx[bones[0]], 'path': 'translation'}})
             anims.append({'name': name, 'samplers': samplers, 'channels': channels})
         g = {'asset': {'version': '2.0', 'generator': 'saleel procedural gear/horse generator'}, 'scene': 0, 'scenes': [{'nodes': [arm]}], 'nodes': nodes,
-             'skins': [{'joints': list(range(len(bones))), 'inverseBindMatrices': aIB, 'skeleton': 0}], 'meshes': [{'primitives': prims}],
+             'skins': [{'joints': list(range(len(bones))), 'inverseBindMatrices': aIB, 'skeleton': 0}], 'meshes': meshes,
              'materials': materials, 'textures': textures, 'images': images, 'samplers': [{'magFilter': 9729, 'minFilter': 9987, 'wrapS': 10497, 'wrapT': 10497}],
              'accessors': acc, 'bufferViews': views, 'buffers': [{'byteLength': len(blob)}], 'animations': anims}
         js = json.dumps(g, separators=(',', ':')).encode()
