@@ -65,7 +65,9 @@ def guard(kind):
     if kind == 'archer': return dict(raf=0.55, rae=1.0, rao=0.15, laf=0.7, lae=0.7, lao=0.1)
     if kind == 'civ': return dict(raf=0.08, rae=0.25, laf=0.08, lae=0.25)
     if kind == 'ride': return dict(raf=0.7, rae=0.9, laf=0.7, lae=0.9)
-    return dict(raf=0.25, rae=0.95, rao=0.35, rat=-0.3, laf=0.3, lae=0.9, lao=0.25, lat=0.3)  # sword ready, shield up
+    # historical ready stance: knees bent, weight low, lead (shield-side) foot forward, trailing foot turned out, body half-turned
+    return dict(raf=0.25, rae=0.95, rao=0.35, rat=-0.3, laf=0.3, lae=0.9, lao=0.25, lat=0.3,
+                rlf=-0.2, llf=0.28, rlk=0.3, llk=0.34, rlo=0.12, llo=0.06, dy=-0.07, yaw=0.1, lean=0.04)
 
 def idle(kind):
     def f(t):
@@ -74,8 +76,11 @@ def idle(kind):
         p['lean'] = 0.02 + 0.012 * math.sin(a); p['shl'] = p['shr'] = 0.03 * math.sin(a)
         p['roll'] = 0.025 * math.sin(a * 0.5); p['rroll'] = -0.02 * math.sin(a * 0.5); p['dx'] = 0.012 * math.sin(a * 0.5)
         p['hyaw'] = 0.12 * math.sin(a * 0.5 + 1.0); p['hpitch'] = 0.03 * math.sin(a)
-        p['rlf'] = 0.05; p['llf'] = -0.04; p['rlk'] = 0.08; p['llk'] = 0.06
-        p['dy'] = -0.015 + 0.004 * math.sin(a)
+        if kind == 'melee':
+            p['dy'] += 0.012 * math.sin(a * 2) - 0.012; p['rlk'] += 0.03 * math.sin(a * 2); p['llk'] += 0.03 * math.sin(a * 2 + 0.6)  # fighting bounce
+            p['dx'] = 0.02 * math.sin(a); p['rlf'] += 0.02 * math.sin(a); p['llf'] -= 0.02 * math.sin(a)
+        else:
+            p['rlf'] = 0.05; p['llf'] = -0.04; p['rlk'] = 0.08; p['llk'] = 0.06; p['dy'] = -0.015 + 0.004 * math.sin(a)
         p['raf'] += 0.02 * math.sin(a + 0.8); p['laf'] += 0.015 * math.sin(a + 1.6)
         return to_pose(p, kind)
     return f
@@ -95,7 +100,7 @@ def gait(kind, amp, knee, bob, lean, arm, speed_hips):
         p['lean'] = lean + 0.01 * math.cos(2 * a)
         p['hyaw'] = s * speed_hips * 0.9; p['hpitch'] = -lean * 0.6
         if kind in ('melee',):
-            p['raf'] = 0.5 + arm * 0.35 * -s * 0.4; p['laf'] = 0.5 + arm * 0.2 * s * 0.4
+            p['raf'] = 0.15 + arm * 0.3 * -s * 0.4; p['laf'] = 0.55 + arm * 0.15 * s * 0.4; p['rae'] = 0.7; p['lae'] = 1.1; p['rao'] = 0.45
         elif kind == 'archer':
             p['raf'] = 0.4 + arm * 0.5 * -s * 0.6; p['laf'] = 0.6 + arm * 0.4 * s * 0.5
         else:
@@ -170,6 +175,30 @@ def attack_thrust(kind):
         return to_pose(kf(t, keys), kind)
     return f
 
+def attack_rising(kind):
+    # Unterhau: low-to-high rising cut from the trailing side, long step in, hips drive it up
+    def f(t):
+        base = guard(kind)
+        keys = [(0.0, base),
+                (0.28, dict(base, raf=-0.35, rao=-0.2, rae=0.3, rat=0.5, yaw=0.5, ry=0.2, lean=0.12, rlk=0.55, llk=0.3, rlf=-0.35, llf=0.1, dy=-0.14, dz=-0.05, hpitch=0.1, wr=0.2)),
+                (0.44, dict(base, raf=1.9, rao=0.3, rae=0.2, rat=-0.6, yaw=-0.6, ry=-0.2, lean=0.15, rlk=0.4, llk=0.1, rlf=-0.5, llf=0.85, dy=-0.12, dz=0.16, hpitch=-0.05, wr=-0.3)),
+                (0.58, dict(base, raf=2.2, rao=0.4, rae=0.3, yaw=-0.5, lean=0.1, rlk=0.4, llk=0.1, rlf=-0.45, llf=0.8, dy=-0.1, dz=0.14)),
+                (1.0, base)]
+        return to_pose(kf(t, keys), kind)
+    return f
+
+def attack_bash(kind):
+    # shield bash: gather behind the shield, shoulder + step drive, sword hand cocked back for the follow-up
+    def f(t):
+        base = guard(kind)
+        keys = [(0.0, base),
+                (0.22, dict(base, laf=0.9, lae=1.9, lao=0.2, lean=0.0, yaw=0.3, rlk=0.45, llk=0.5, rlf=-0.3, llf=0.15, dy=-0.12, dz=-0.08, shl=0.1)),
+                (0.38, dict(base, laf=1.25, lae=0.7, lao=0.1, lat=0.3, lean=0.3, yaw=-0.3, rlf=-0.5, llf=0.8, rlk=0.3, llk=0.2, dy=-0.1, dz=0.22, shl=0.35, raf=0.4, rae=1.4)),
+                (0.55, dict(base, laf=1.2, lae=0.8, lean=0.25, rlf=-0.45, llf=0.7, dy=-0.1, dz=0.2, shl=0.3)),
+                (1.0, base)]
+        return to_pose(kf(t, keys), kind)
+    return f
+
 def attack_bow():
     def f(t):
         base = guard('archer')
@@ -227,7 +256,7 @@ def clips(kind):
     C.append(('react', 0.6, react(k), False))
     if k == 'melee': C.append(('block', 0.8, block(k), False))
     if k == 'melee':
-        C.append(('attack', 0.9, attack_slash(k), False)); C.append(('attack2', 1.0, attack_overhead(k), False)); C.append(('attack3', 0.95, attack_thrust(k), False))
+        C.append(('attack', 0.9, attack_slash(k), False)); C.append(('attack2', 1.0, attack_overhead(k), False)); C.append(('attack3', 0.95, attack_thrust(k), False)); C.append(('attack4', 0.9, attack_rising(k), False)); C.append(('attack5', 0.85, attack_bash(k), False))
     elif k == 'archer': C.append(('attack', 1.3, attack_bow(), False))
     else: C.append(('attack', 0.8, attack_civ(), False))
     C.append(('die', 1.2, die(k, 0), False)); C.append(('die2', 1.3, die(k, 1), False))
