@@ -220,7 +220,7 @@ class Model:
             att = {'POSITION': put(pos, 34962, 5126, 'VEC3', True), 'NORMAL': put(nrm, 34962, 5126, 'VEC3'),
                    'TEXCOORD_0': put(uv, 34962, 5126, 'VEC2'), 'COLOR_0': put(col, 34962, 5126, 'VEC4'),
                    'JOINTS_0': put(J, 34962, 5123, 'VEC4'), 'WEIGHTS_0': put(W, 34962, 5126, 'VEC4')}
-            mat = {'name': mname, 'pbrMetallicRoughness': {'baseColorFactor': [1, 1, 1, 1], 'metallicFactor': 0.0, 'roughnessFactor': 0.85}}
+            mat = {'name': mname, 'pbrMetallicRoughness': {'baseColorFactor': [1, 1, 1, 1], 'metallicFactor': 0.0, 'roughnessFactor': getattr(self, 'body_rough', 0.85)}}
             if mname != 'body':
                 mat['pbrMetallicRoughness'] = {'baseColorFactor': [1, 1, 1, 1], 'baseColorTexture': {'index': tex(mname + '_c')},
                     'metallicRoughnessTexture': {'index': tex(mname + '_mr')}, 'metallicFactor': 1.0, 'roughnessFactor': 1.0}

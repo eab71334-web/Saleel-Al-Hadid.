@@ -26,6 +26,8 @@ const KEYS := {
 	"attack": ["attack", "slash", "strike", "swing", "shoot", "punch", "hit"],
 	"die": ["die", "death", "dead", "fall"],
 	"ride": ["ride", "sit", "horse"],
+	"mount": ["mount"],
+	"dismount": ["dismount"],
 	"turnl": ["turn_left"],
 	"turnr": ["turn_right"],
 	"react": ["react"],
@@ -39,6 +41,8 @@ const FALLBACK := {
 	"ride": ["ride", "idle"],
 	"attack": ["attack"],
 	"die": ["die"],
+	"mount": ["mount", "ride", "idle"],
+	"dismount": ["dismount", "idle"],
 	"turnl": ["turnl", "walk", "idle"],
 	"turnr": ["turnr", "walk", "idle"],
 	"react": ["react"],
@@ -299,7 +303,7 @@ static func has_anim(rig: Dictionary, logical: String) -> bool:
 
 
 static func busy(rig: Dictionary) -> bool:
-	return (rig.cur == "attack" or rig.cur == "react" or rig.cur == "block") and rig.player != null and rig.player.is_playing()
+	return (rig.cur == "attack" or rig.cur == "react" or rig.cur == "block" or rig.cur == "mount" or rig.cur == "dismount") and rig.player != null and rig.player.is_playing()
 
 
 # Plays `logical` (with fallbacks) and returns the logical name actually used ("" if none).
@@ -316,7 +320,7 @@ static func play(rig: Dictionary, logical: String, restart := false) -> String:
 					nm = rig.names["_attack"][randi() % rig.names["_attack"].size()]
 				elif cand == "die" and rig.names.has("_die"):
 					nm = rig.names["_die"][randi() % rig.names["_die"].size()]
-				ap.play(nm, 0.12 if cand in ["attack", "react", "block"] else 0.18)
+				ap.play(nm, 0.12 if cand in ["attack", "react", "block", "mount", "dismount"] else 0.18)
 				ap.speed_scale = 1.0
 			return cand
 	return ""

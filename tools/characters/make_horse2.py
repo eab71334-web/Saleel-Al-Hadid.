@@ -27,9 +27,48 @@ def noise(p, f=14.0):
     return (math.sin(p[0] * f * 1.3 + p[1] * f * 0.7) * math.sin(p[2] * f + p[1] * f * 1.9) + 1) * 0.5
 
 
+def make_caparison_tex(outdir):
+    import os
+    from PIL import Image, ImageDraw
+    os.makedirs(outdir + '/tex', exist_ok=True)
+    W, Hh = 1024, 640
+    img = Image.new('RGB', (W, Hh), (172, 20, 28)); d = ImageDraw.Draw(img)
+    gold = (236, 184, 60); dk = (120, 10, 18)
+    # woven pattern
+    for y in range(0, Hh, 8):
+        d.line([(0, y), (W, y)], fill=(165, 18, 26), width=1)
+    for x in range(0, W, 8):
+        d.line([(x, 0), (x, Hh)], fill=(180, 24, 32), width=1)
+    # borders (hem = u edges, front/back = v edges)
+    bw = 34
+    for k, (c, w) in enumerate(((gold, bw), (dk, 22))):
+        off = sum(q[1] for q in ((gold, bw), (dk, 22))[:k])
+        d.rectangle([off, 0, off + w, Hh], fill=c); d.rectangle([W - off - w, 0, W - off, Hh], fill=c)
+        d.rectangle([0, off, W, off + w], fill=c) if k == 0 else d.rectangle([0, off, W, off + w], fill=c)
+        d.rectangle([0, Hh - off - w, W, Hh - off], fill=c)
+    d.rectangle([84, 84, W - 84, Hh - 84], outline=gold, width=5)
+    # heraldic emblem on both flanks: ring + cross + corner studs
+    for cx in (int(W * 0.24), int(W * 0.76)):
+        cy = Hh // 2
+        d.ellipse([cx - 120, cy - 120, cx + 120, cy + 120], fill=dk, outline=gold, width=10)
+        d.ellipse([cx - 92, cy - 92, cx + 92, cy + 92], outline=gold, width=4)
+        d.rectangle([cx - 14, cy - 96, cx + 14, cy + 96], fill=gold); d.rectangle([cx - 96, cy - 14, cx + 96, cy + 14], fill=gold)
+        for ang in range(8):
+            import math as _m
+            px = cx + 108 * _m.cos(ang * _m.pi / 4); py = cy + 108 * _m.sin(ang * _m.pi / 4); d.ellipse([px - 7, py - 7, px + 7, py + 7], fill=gold)
+    # diamond lattice (stitching) around
+    for gx in range(1, 9):
+        for gy in range(1, 5):
+            x = gx * W // 9; y = gy * Hh // 5
+            if min(abs(x - W * 0.24), abs(x - W * 0.76)) > 150: d.polygon([(x, y - 14), (x + 14, y), (x, y + 14), (x - 14, y)], outline=gold)
+    img.save(outdir + '/tex/caparison_c.png')
+    Image.new('RGB', (W, Hh), (0, 205, 0)).save(outdir + '/tex/caparison_mr.png')
+    Image.new('RGB', (W, Hh), (128, 128, 255)).save(outdir + '/tex/caparison_n.png')
+
+
 def build(coat, name, outdir):
     C = COATS[coat]
-    M = Model(BONES, P, H)
+    M = Model(BONES, P, H); M.body_rough = 0.5
     body = np.array(C['body']); dark = np.array(C['dark'])
 
     def coatcol(p):
@@ -70,7 +109,7 @@ def build(coat, name, outdir):
 
     # ------------------------------------------------------------ neck (arched crest)
     nk = [((0, 1.36, 0.84), 0.19, 0.31), ((0, 1.46, 0.95), 0.165, 0.275), ((0, 1.58, 1.05), 0.14, 0.235), ((0, 1.7, 1.14), 0.118, 0.2), ((0, 1.79, 1.22), 0.1, 0.17), ((0, 1.84, 1.28), 0.088, 0.14)]
-    rings = [ring_perp(c, (0, 0.8, 0.5), rxv, ryv) for c, rxv, ryv in nk]
+    rings = [ring_perp(c, (0, 0.8, 0.5), rxv, ryv) for c, rxv, ryv in nk]; rings_neck = rings
     Vn, Fn = loft(rings, 18, False, False)
     def neck_w(p):
         t = float(np.clip((p[1] - 1.36) / 0.45, 0, 1))
@@ -82,7 +121,7 @@ def build(coat, name, outdir):
     # ------------------------------------------------------------ head (poll -> muzzle)
     hd = [((0, 1.84, 1.27), 0.07, 0.09), ((0, 1.8, 1.31), 0.095, 0.125), ((0, 1.72, 1.375), 0.105, 0.15), ((0, 1.64, 1.44), 0.1, 0.15),
           ((0, 1.57, 1.51), 0.08, 0.12), ((0, 1.515, 1.585), 0.06, 0.1), ((0, 1.485, 1.65), 0.066, 0.095), ((0, 1.47, 1.7), 0.058, 0.07), ((0, 1.465, 1.725), 0.03, 0.03)]
-    rings = [ring_perp(c, (0, -0.8, 0.6), rxv, ryv) for c, rxv, ryv in hd]
+    rings = [ring_perp(c, (0, -0.8, 0.6), rxv, ryv) for c, rxv, ryv in hd]; rings_head = rings
     Vh, Fh = loft(rings, 20, True, True)
     blaze = C['blaze']
     def headcol(p):
@@ -188,18 +227,94 @@ def build(coat, name, outdir):
     for s in ('fl', 'fr'): leg(s, True)
     for s in ('hl', 'hr'): leg(s, False)
 
+    szs = np.array([q[0] for q in sec]); scy = np.array([q[1] for q in sec]); srx = np.array([q[2] for q in sec]); sry = np.array([q[3] for q in sec])
+    def _flipfix(V, F, ctr):
+        V = np.array(V); F = np.array(F)
+        fn = np.cross(V[F[:, 1]] - V[F[:, 0]], V[F[:, 2]] - V[F[:, 0]]); fc = V[F].mean(axis=1)
+        out = fc - np.array([ctr[0], ctr[1], 0]) * np.array([1, 1, 0]) - np.array([0, 0, 0])
+        out[:, 2] = 0; bad = (fn * out).sum(axis=1) < 0
+        F = F.copy(); F[bad] = F[bad][:, [0, 2, 1]]; return F
+    def CAPARISON():
+        # draped trapper cloth: team field, gold border, scalloped hem; two skins so it has thickness
+        zs = np.linspace(-0.66, 0.7, 68); rowsV = []
+        for z in zs:
+            rx_ = np.interp(z, szs, srx); ry_ = np.interp(z, szs, sry); cy = np.interp(z, szs, scy)
+            edge = min(z + 0.66, 0.7 - z)
+            yh = cy - ry_ * 0.55 - 0.2 + 0.1 * max(0.0, 0.1 - edge) * 3 + 0.025 * math.sin(z * 17)
+            pts = [(-(rx_ * 1.1 + 0.07), yh), (-(rx_ * 1.07 + 0.03), cy - ry_ * 0.45)]
+            for ph in np.linspace(-1.55, 1.55, 19): pts.append((rx_ * 1.045 * math.sin(ph), cy + ry_ * 1.045 * math.cos(ph) * 1.0))
+            pts += [((rx_ * 1.07 + 0.03), cy - ry_ * 0.45), ((rx_ * 1.1 + 0.07), yh)]
+            pts = [tuple(q) for q in pts]; dense = []
+            for q in range(len(pts) - 1):
+                n_ = 12 if q in (0, len(pts) - 2) else (3 if q in (1, len(pts) - 3) else 1)
+                for sub in range(n_):
+                    tt = sub / n_
+                    dense.append((pts[q][0] * (1 - tt) + pts[q + 1][0] * tt, pts[q][1] * (1 - tt) + pts[q + 1][1] * tt))
+            dense.append(pts[-1]); rowsV.append([(x, y, z) for x, y in dense])
+        nz, nu = len(rowsV), len(rowsV[0])
+        UVs = []
+        for ri, r in enumerate(rowsV):
+            arr = np.array(r); seg = np.linalg.norm(np.diff(arr[:, :2], axis=0), axis=1); cum = np.concatenate([[0], np.cumsum(seg)]); cum /= cum[-1]
+            for ci in range(nu): UVs.append((cum[ci], ri / (nz - 1)))
+        UVs = np.array(UVs)
+        V = np.array([p for r in rowsV for p in r]); F = []
+        for i in range(nz - 1):
+            for j in range(nu - 1):
+                a_, b_, c_, d_ = i * nu + j, i * nu + j + 1, (i + 1) * nu + j, (i + 1) * nu + j + 1
+                F += [[a_, b_, c_], [b_, d_, c_]]
+        F = np.array(F)
+        cyv = np.interp(V[:, 2], szs, scy)
+        Vin = V.copy(); Vin[:, 0] *= 0.985; Vin[:, 1] = cyv + (V[:, 1] - cyv) * 0.985 - 0.004
+        def col(p):
+            z = p[2]; edge = min(z + 0.66, 0.7 - z); yh = np.interp(z, szs, scy) - np.interp(z, szs, sry) * 0.55 - 0.2
+            gold = np.array((0.95, 0.74, 0.22)); red = np.array((0.7, 0.07, 0.09)); dk = np.array((0.5, 0.04, 0.06))
+            if p[1] < yh + 0.05 or edge < 0.05: return gold
+            if p[1] < yh + 0.09 or edge < 0.09: return dk
+            if p[1] < yh + 0.135 and p[1] > yh + 0.115: return gold * 0.9
+            if abs(p[0]) > 0.25 and (p[2] ** 2 + (p[1] - (yh + 0.4)) ** 2) < 0.17 ** 2: return gold if (p[2] ** 2 + (p[1] - (yh + 0.4)) ** 2) > 0.12 ** 2 else dk
+            return red * (0.95 + 0.06 * noise(p, 12.0))
+        wf = lambda p: [('root', 1.0)] if p[2] < 0.0 else [('chest', 0.7), ('root', 0.3)]
+        M.add('caparison', V, _flipfix(V, F, (0, 1.25)), color=(1, 1, 1), wfn=wf, smooth=True, uvs=UVs)
+        M.add('cloth', Vin, _flipfix(Vin, F, (0, 1.25))[:, [0, 2, 1]], color=(0.45, 0.05, 0.07), wfn=wf, smooth=False)
+
+    def arc_plate(rings, i0, i1, a0, a1, off, mat, col, bone, nz=1, nth=7, wfn=None, gap=0.0):
+        # curved plate following loft rings (c,u,v) between ring index floats i0..i1 and ellipse angles a0..a1 (90deg = top)
+        n = len(rings)
+        def ring_at(f):
+            i = int(min(max(f, 0), n - 2)); t = f - i
+            c = np.array(rings[i][0]) * (1 - t) + np.array(rings[i + 1][0]) * t
+            u = np.array(rings[i][1]) * (1 - t) + np.array(rings[i + 1][1]) * t; v = np.array(rings[i][2]) * (1 - t) + np.array(rings[i + 1][2]) * t
+            return c, u, v
+        V = []; F = []
+        steps = max(2, nz + 1)
+        for k in range(steps):
+            c, u, v = ring_at(i0 + (i1 - i0) * k / (steps - 1))
+            for th in np.linspace(a0, a1, nth):
+                th = math.radians(th); p = c + u * math.cos(th) * (1 + off / max(np.linalg.norm(u), 1e-3)) + v * math.sin(th) * (1 + off / max(np.linalg.norm(v), 1e-3)); V.append(p)
+        for k in range(steps - 1):
+            for j in range(nth - 1):
+                a_, b_, c_, d_ = k * nth + j, k * nth + j + 1, (k + 1) * nth + j, (k + 1) * nth + j + 1
+                F += [[a_, b_, c_], [b_, d_, c_]]
+        V = np.array(V); F = np.array(F)
+        cen = np.array([np.mean([r[0][i] for r in rings]) for i in range(3)])
+        fn = np.cross(V[F[:, 1]] - V[F[:, 0]], V[F[:, 2]] - V[F[:, 0]]); fc = V[F].mean(axis=1)
+        # orient outward from the ring axis
+        ci = [np.array(ring_at(i0 + (i1 - i0) * (k + 0.5) / (steps - 1))[0]) for k in range(steps - 1)]
+        bad = np.array([(fn[f] @ (fc[f] - ci[min(f // (2 * (nth - 1)), len(ci) - 1)])) < 0 for f in range(len(F))])
+        F[bad] = F[bad][:, [0, 2, 1]]
+        M.add(mat, V, F, color=col, bone=bone, smooth=True, wfn=wfn)
+
     # ------------------------------------------------------------ tack (saddle blanket in team cloth, saddle, stirrups, girth, bridle, reins, breastcollar)
-    Vv, Ff = loft([ring_xy((0, 1.36, zz), 0.335 - 0.03 * abs(zz), 0.275) for zz in (-0.4, -0.2, 0.0, 0.2, 0.4)], 16, True, True)
-    M.add('cloth', Vv, Ff, color=(0.78, 0.12, 0.12), bone='root', wfn=lambda p: [('root', 1.0)] if p[2] < 0.1 else [('chest', 0.6), ('root', 0.4)])
-    Vv, Ff = loft([ring_xy((0, 1.455 + 0.012 * (abs(zz) > 0.2), zz), 0.14, 0.065 + 0.03 * (abs(zz) > 0.22)) for zz in (-0.34, -0.22, 0.0, 0.2, 0.3)], 12, True, True)
+    CAPARISON()
+    Vv, Ff = loft([ring_xy((0, 1.64 + 0.012 * (abs(zz) > 0.2), zz), 0.14, 0.065 + 0.03 * (abs(zz) > 0.22)) for zz in (-0.34, -0.22, 0.0, 0.2, 0.3)], 12, True, True)
     M.add('leather', Vv, Ff, wfn=lambda p: [('root', 0.5), ('chest', 0.5)])
-    Vv, Ff = box((0, 1.56, -0.32), (0.3, 0.14, 0.05), euler(-0.3, 0, 0)); M.add('leather', Vv, Ff, smooth=False, bone='root')
-    Vv, Ff = box((0, 1.54, 0.3), (0.12, 0.12, 0.06), euler(0.3, 0, 0)); M.add('leather', Vv, Ff, smooth=False, bone='chest')
+    Vv, Ff = box((0, 1.78, -0.32), (0.3, 0.17, 0.05), euler(-0.3, 0, 0)); M.add('leather', Vv, Ff, smooth=False, bone='root')
+    Vv, Ff = box((0, 1.74, 0.3), (0.12, 0.14, 0.06), euler(0.3, 0, 0)); M.add('leather', Vv, Ff, smooth=False, bone='chest')
     for sg in (-1, 1):
-        Vv, Ff = box((sg * 0.34, 1.05, 0.0), (0.016, 0.42, 0.03)); M.add('leather', Vv, Ff, smooth=False, bone='root')
+        Vv, Ff = box((sg * 0.37, 1.2, 0.0), (0.016, 0.62, 0.03)); M.add('leather', Vv, Ff, smooth=False, bone='root')
         Vv, Ff = lathe([(0.065, 0.0), (0.065, 0.012)], 4, (0, 0, 0), 1)
-        Vv, Ff = box((sg * 0.34, 0.84, 0.0), (0.1, 0.014, 0.115)); M.add('steel', Vv, Ff, smooth=False, bone='root')
-        Vv, Ff = box((sg * 0.34, 0.9, 0.0), (0.1, 0.1, 0.012)); M.add('steel', Vv, Ff, smooth=False, bone='root')
+        Vv, Ff = box((sg * 0.37, 0.89, 0.0), (0.1, 0.014, 0.115)); M.add('steel', Vv, Ff, smooth=False, bone='root')
+        Vv, Ff = box((sg * 0.37, 0.95, 0.0), (0.1, 0.1, 0.012)); M.add('steel', Vv, Ff, smooth=False, bone='root')
     Vv, Ff = loft([ring_xy((0, 1.2, 0.2), 0.288, 0.388), ring_xy((0, 1.2, 0.26), 0.288, 0.388)], 18, False, False)
     M.add('leather', Vv, Ff, wfn=lambda p: [('chest', 1.0)])
     # breast collar
@@ -220,6 +335,22 @@ def build(coat, name, outdir):
         pts = [(sg * 0.075, 1.48, 1.62), (sg * 0.1, 1.5, 1.35), (sg * 0.14, 1.55, 0.95), (sg * 0.15, 1.5, 0.6)]
         rr = [(np.array(q), (0.004, 0, 0), (0, 0, 0.004)) for q in pts]
         Vv, Ff = loft(rr, 4, False, False); M.add('leather', Vv, Ff, bone='neck', smooth=True)
+
+
+    # ------------------------------------------------------------ barding: crinet (neck plates), face plate, peytral (chest)
+    for k in range(8):
+        f0 = k * 0.62; f1 = f0 + 0.7
+        arc_plate(rings_neck, f0, min(f1, len(rings_neck) - 1.001), 40, 140, 0.012 + 0.004 * (k % 2), 'steel', (1, 1, 1), 'neck', nz=1, nth=6, wfn=neck_w)
+        arc_plate(rings_neck, f0 + 0.02, min(f0 + 0.1, len(rings_neck) - 1.001), 55, 125, 0.02, 'gold', (1, 1, 1), 'neck', nz=1, nth=4, wfn=neck_w)
+    arc_plate(rings_head, 1.4, 6.3, 62, 118, 0.011, 'steel', (1, 1, 1), 'head', nz=7, nth=7)       # face plate (chamfron)
+    arc_plate(rings_head, 1.4, 6.3, 87, 93, 0.02, 'gold', (1, 1, 1), 'head', nz=7, nth=3)          # gold ridge
+    Vv, Ff = lathe([(0.03, 0.0), (0.02, 0.05), (0.001, 0.1)], 8, (0, 0, 0), 1); M.add('gold', place(Vv, euler(0.55, 0, 0), (0, 1.8, 1.4)), Ff, bone='head')   # plume spike
+    for sg in (-1, 1):
+        Vv, Ff = blob((sg * 0.1, 1.735, 1.375), (0.044, 0.044, 0.02), nseg=12); M.add('steel', Vv, Ff, bone='head') if False else None
+    pr = [ring_xy((0, 1.3, 0.9 + 0.045 * k), 0.255 - 0.025 * k, 0.33 - 0.035 * k) for k in range(4)]
+    arc_plate(pr, 0, 3, 120, 420, 0.035, 'steel', (1, 1, 1), 'chest', nz=4, nth=14, wfn=lambda p: [('chest', 1.0)])
+    arc_plate(pr, 0, 0.35, 125, 415, 0.05, 'gold', (1, 1, 1), 'chest', nz=1, nth=14, wfn=lambda p: [('chest', 1.0)])
+    Vv, Ff = blob((0, 1.28, 1.0), (0.05, 0.05, 0.04), nseg=12); M.add('gold', Vv, Ff, bone='chest')
 
     # ------------------------------------------------------------ animation
     def rotx(v): return (v, 0, 0)
@@ -292,5 +423,5 @@ def build(coat, name, outdir):
 
 
 if __name__ == '__main__':
-    out = sys.argv[1]
+    out = sys.argv[1]; make_caparison_tex(out)
     build('bay', 'horse', out); build('chestnut', 'horse2', out); build('black', 'horse3', out); build('grey', 'horse4', out)

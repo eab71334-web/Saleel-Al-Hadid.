@@ -78,6 +78,12 @@ var move_in := Vector3.ZERO
 var buff_t := 0.0
 var rally_cd := 0.0
 var mount_cd := 0.0
+var mount_state := 0        # 0 none, 1 horse is coming, 2 mounting, 3 dismounting
+var mount_p := 0.0
+var mhorse: Node3D = null   # the player's own horse while it is not under the rider
+var mhrig = null
+var _mo := 0.0               # sideways offset of the rider from the saddle while (dis)mounting
+var _mh_t := 0.0
 var last_seen := 0.0
 var tpos := Vector3.ZERO
 var tyaw := 0.0
@@ -617,6 +623,152 @@ func set_mounted(m: bool) -> void:
 		bar.position.y = (2.6 if kind != "hero" else 3.7) + (0.9 if m else 0.0)
 
 
+
+func _exit_tree() -> void:
+	if mhorse != null and is_instance_valid(mhorse) and mhorse.get_parent() == battle:
+		mhorse.queue_free()
+
+
+# ---------------------------------------------------------------- call the horse / mount / dismount
+func call_horse() -> void:
+	if mounted or mount_state != 0 or dead:
+		return
+	if mhorse == null or not is_instance_valid(mhorse):
+		var hr = Models.build("horse", randi() % maxi(1, Models.variant_count("horse")))
+		if hr == null:
+			set_mounted(true)
+			return
+		mhrig = hr
+		mhorse = Node3D.new()
+		mhorse.add_child(hr.root)
+		battle.add_child(mhorse)
+		var a := rotation.y + 2.5
+		mhorse.position = position + Vector3(sin(a), 0, cos(a)) * 24.0
+		mhorse.rotation.y = a + PI
+		battle.sfx.play("horn", position, -10.0, 1.6)
+	mount_state = 1
+	_mh_t = 0.0
+
+
+func _horse_target() -> Vector3:
+	return position + global_transform.basis.x * 1.05
+
+
+func _mount_tick(dt: float) -> void:
+	if kind != "hero":
+		return
+	if mount_state == 0 and mhorse != null and is_instance_valid(mhorse) and not mounted and mhorse.get_parent() == battle:
+		if hrig != null and mhrig != null:
+			Models.play(mhrig, "idle")
+		if position.distance_to(mhorse.position) > 90.0:
+			mhorse.queue_free()
+			mhorse = null
+		return
+	if mount_state == 1:
+		_mh_t += dt
+		var tp := _horse_target()
+		var d := tp - mhorse.position
+		d.y = 0.0
+		var dist := d.length()
+		var spd_h := clampf(dist * 1.5, 0.0, 12.0)
+		if dist > 0.05:
+			mhorse.position += d.normalized() * minf(spd_h * dt, dist)
+		var want_yaw := rotation.y
+		if dist > 1.5:
+			want_yaw = atan2(d.x, d.z)
+		var oldy := mhorse.rotation.y
+		mhorse.rotation.y = lerp_angle(mhorse.rotation.y, want_yaw, clampf(dt * 7.0, 0.0, 1.0))
+		var yr := wrapf(mhorse.rotation.y - oldy, -PI, PI) / maxf(dt, 0.0001)
+		if mhrig != null:
+			var hw := "idle"
+			if spd_h > 6.0:
+				hw = "run"
+			elif spd_h > 0.5:
+				hw = "walk"
+			elif absf(yr) > 0.8:
+				hw = "turnl" if yr > 0.0 else "turnr"
+			var hu: String = Models.play(mhrig, hw)
+			if hu == "walk":
+				mhrig.player.speed_scale = clampf(spd_h / 3.0, 0.6, 1.8)
+			elif hu == "run":
+				mhrig.player.speed_scale = clampf(spd_h / 8.0, 0.6, 1.8)
+		if (dist < 0.15 and absf(wrapf(mhorse.rotation.y - rotation.y, -PI, PI)) < 0.25) or _mh_t > 14.0:
+			_begin_mount()
+	elif mount_state == 2 or mount_state == 3:
+		mount_p += dt / (1.5 if mount_state == 2 else 1.1)
+		if mount_p >= 1.0:
+			mount_p = 0.0
+			if mount_state == 2:
+				mount_state = 0
+				set_mounted(true)
+			else:
+				mount_state = 0
+				mounted = false
+				body.position.x = 0.0
+
+
+func _begin_mount() -> void:
+	if rig == null or not Models.has_anim(rig, "mount"):
+		mhorse.get_parent().remove_child(mhorse)
+		add_child(mhorse)
+		mhorse.position = Vector3.ZERO
+		mhorse.rotation = Vector3.ZERO
+		horse = mhorse
+		hrig = mhrig
+		ride_y = Models.HORSE_RIDE_Y
+		mhorse = null
+		mount_state = 0
+		set_mounted(true)
+		return
+	var hp: Vector3 = mhorse.position
+	var rel := position - hp
+	rel.y = 0.0
+	_mo = rel.rotated(Vector3.UP, -rotation.y).x
+	mhorse.get_parent().remove_child(mhorse)
+	add_child(mhorse)
+	mhorse.rotation = Vector3.ZERO
+	position = hp
+	mhorse.position = Vector3.ZERO
+	horse = mhorse
+	hrig = mhrig
+	horse.visible = true
+	ride_y = Models.HORSE_RIDE_Y
+	mhorse = null
+	for l in legs:
+		l.visible = false
+	mount_state = 2
+	mount_p = 0.0
+	Models.play(rig, "mount", true)
+	battle.sfx.play("thud", position, -8.0, 1.3)
+
+
+func dismount() -> void:
+	if not mounted or mount_state != 0 or horse == null:
+		return
+	if rig == null or not Models.has_anim(rig, "dismount"):
+		set_mounted(false)
+		return
+	# the horse stays where it is, the rider steps off on its near side
+	var hp := position
+	remove_child(horse)
+	battle.add_child(horse)
+	horse.position = hp
+	horse.rotation = Vector3(0, rotation.y, 0)
+	mhorse = horse
+	mhrig = hrig
+	horse = null
+	hrig = null
+	_mo = -1.05
+	position = hp + global_transform.basis.x * 1.05
+	mounted = false
+	mount_state = 3
+	mount_p = 0.0
+	for l in legs:
+		l.visible = true
+	if bar:
+		bar.position.y = 3.7
+	Models.play(rig, "dismount", true)
+
 # ---------------------------------------------------------------- animation (all peers)
 func _process(dt: float) -> void:
 	if puppet and not dead:
@@ -634,11 +786,19 @@ func _process(dt: float) -> void:
 	var ph := sin(anim_t * 7.0)
 	if rig != null or hrig != null:
 		_model_anim()
+	_mount_tick(dt)
 	for i in (0 if rigged else legs.size()):
 		legs[i].rotation.x = ph * 0.8 * (1.0 if i == 0 else -1.0) * (1.0 if mv else 0.0)
 	for i in hlegs.size():
 		hlegs[i].rotation.x = ph * 0.7 * (1.0 if i % 3 == 0 else -1.0) * (1.0 if mv else 0.0)
 	body.position.y = (ride_y if mounted else 0.0) + (absf(ph) * 0.05 if (mv and rig == null and not rigged) else 0.0)
+	body.position.x = 0.0
+	if mount_state >= 2:
+		var up := 1.0 - mount_p if mount_state == 3 else mount_p
+		var ey := smoothstep(0.22, 0.85, up)
+		var ex := smoothstep(0.3, 0.8, up)
+		body.position.y = ride_y * ey
+		body.position.x = _mo * (1.0 - ex)
 	body.scale = Vector3.ONE * sc * (1.0 + flash * 0.1)
 	if rigged:
 		# animation level of detail: far-away soldiers animate at a lower rate (saves CPU on big armies)
@@ -978,6 +1138,9 @@ func _goto(p: Vector3, mult := 1.0) -> void:
 
 
 func _hero() -> void:
+	if mount_state >= 2:
+		sim_speed = 0.0
+		return
 	if aboard != null:
 		if not is_instance_valid(aboard) or aboard.dead:
 			aboard = null

@@ -11,7 +11,7 @@ const KingdomS := preload("res://game/kingdom.gd")
 const BattleMapS := preload("res://game/battlemap.gd")
 
 # Horse riding for the player is switched off until the horse models/animations are ready.
-const HORSE_RIDING := false
+const HORSE_RIDING := true
 
 const HINT := 58.0        # depth of the land behind each castle (fields, forest, mines)
 const FOLLOW := 0
@@ -1598,9 +1598,14 @@ func _do_action(owner: int, act: String, arg: int) -> void:
 				if owner == my_id:
 					_toast("Horse riding - coming soon!", 2.5)
 				return
-			if h.mount_cd <= 0.0:
+			if h.mount_cd <= 0.0 and h.mount_state != 2 and h.mount_state != 3:
 				h.mount_cd = 1.0
-				h.set_mounted(not h.mounted)
+				if h.mounted:
+					h.dismount()
+				elif h.mount_state == 0:
+					h.call_horse()
+					if owner == my_id:
+						_toast("Your horse is coming!", 1.5)
 		"power":
 			h.power_req = true
 		"shield":
@@ -2111,7 +2116,7 @@ func _build_hud() -> void:
 	root.add_child(tl)
 	hud["tl"] = tl
 	_tbtn(tl, "STRIKE", Vector2(vs.x - 170 * u, vs.y - 170 * u), Vector2(150, 150) * u, func(): _act("power"), 24, "sword", true).bg.color = Color(0.55, 0.12, 0.1, 0.8)
-	hud["mount"] = _tbtn(tl, "MOUNT" if HORSE_RIDING else "SOON", Vector2(vs.x - 290 * u, vs.y - 120 * u), Vector2(100, 100) * u, func(): _act("mount"), 20, "horse", true)
+	hud["mount"] = _tbtn(tl, "HORSE" if HORSE_RIDING else "SOON", Vector2(vs.x - 290 * u, vs.y - 120 * u), Vector2(100, 100) * u, func(): _act("mount"), 20, "horse", true)
 	if not HORSE_RIDING:
 		hud.mount.bg.color = Color(0.12, 0.12, 0.12, 0.6)
 		hud.mount.lbl.add_theme_color_override("font_color", Color(0.65, 0.65, 0.65))

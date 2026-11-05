@@ -272,6 +272,20 @@ def attack_bash(kind):
         return to_pose(kf(t, keys), kind)
     return f
 
+def mount_clip(kind, rev=False):
+    # Standing at the horse's near side facing its flank: hands on pommel/mane, foot to the stirrup, pull up, swing the far leg over, settle in the saddle.
+    def f(t):
+        base = guard(kind)
+        stand = dict(base, ry=-1.35, yaw=-0.1, hyaw=0.5, raf=0.7, rae=0.5, rao=0.6, laf=0.65, lae=0.7, lao=0.5, rlf=0.0, llf=0.1, rlk=0.1, llk=0.1, rlo=0.1, llo=0.1, dy=0.0, lean=0.05)
+        foot = dict(stand, llf=1.15, llk=1.35, llo=0.25, lean=0.12, raf=0.95, laf=0.9, rae=0.35, lae=0.45, rlk=0.15, dy=-0.02)
+        pull = dict(stand, llf=1.0, llk=1.0, llo=0.3, lean=0.38, ry=-1.1, raf=1.1, laf=1.0, rae=0.3, lae=0.35, rlf=-0.9, rlk=0.7, rlo=0.5, dy=0.04, roll=-0.15)
+        over = dict(stand, llf=0.9, llk=0.9, llo=0.2, lean=0.3, ry=-0.55, raf=1.0, laf=0.9, rae=0.5, lae=0.5, rlf=-0.2, rlk=0.35, rlo=1.2, dy=0.05, roll=-0.08, hyaw=0.2)
+        seat = dict(base, ry=0.0, yaw=0.0, hyaw=0.0, raf=0.75, rae=0.9, rao=0.2, laf=0.75, lae=0.9, lao=0.2, rlf=1.3, llf=1.3, rlk=1.35, llk=1.35, rlo=0.35, llo=0.35, dy=-0.0, lean=0.1, hpitch=-0.06)
+        keys = [(0.0, stand), (0.14, foot), (0.4, pull), (0.62, over), (0.85, dict(seat, ry=-0.1, lean=0.18)), (1.0, seat)]
+        if rev: keys = [(1.0 - k[0], k[1]) for k in keys]
+        return to_pose(kf(t, keys), kind)
+    return f
+
 def attack_bow():
     def f(t):
         rd = dict(READY); dr = draw_pose()
@@ -331,7 +345,7 @@ def clips(kind):
     C.append(('react', 0.6, react(k), False))
     if k == 'melee': C.append(('block', 0.8, block(k), False))
     if k == 'melee':
-        C.append(('attack', 0.9, attack_slash(k), False)); C.append(('attack2', 1.0, attack_overhead(k), False)); C.append(('attack3', 0.95, attack_thrust(k), False)); C.append(('attack4', 0.9, attack_rising(k), False)); C.append(('attack5', 0.85, attack_bash(k), False))
+        C.append(('attack', 0.9, attack_slash(k), False)); C.append(('attack2', 1.0, attack_overhead(k), False)); C.append(('attack3', 0.95, attack_thrust(k), False)); C.append(('attack4', 0.9, attack_rising(k), False)); C.append(('mount', 1.5, mount_clip(k), False)); C.append(('dismount', 1.1, mount_clip(k, True), False)); C.append(('attack5', 0.85, attack_bash(k), False))
     elif k == 'archer': C.append(('attack', 1.3, attack_bow(), False))
     else: C.append(('attack', 0.8, attack_civ(), False))
     C.append(('die', 1.2, die(k, 0), False)); C.append(('die2', 1.3, die(k, 1), False))
