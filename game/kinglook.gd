@@ -5,6 +5,7 @@ extends RefCounted
 
 static var force: Dictionary = {}
 
+const Models := preload("res://game/models.gd")
 const SKIN := [Color(0.95, 0.80, 0.68), Color(0.86, 0.66, 0.52), Color(0.76, 0.56, 0.40), Color(0.62, 0.43, 0.30), Color(0.45, 0.30, 0.21), Color(0.80, 0.72, 0.62)]
 const HAIR := [Color(0.10, 0.07, 0.05), Color(0.30, 0.18, 0.09), Color(0.55, 0.32, 0.12), Color(0.85, 0.70, 0.35), Color(0.62, 0.62, 0.64), Color(0.62, 0.15, 0.08)]
 const EYE := [Color(0.18, 0.12, 0.08), Color(0.20, 0.40, 0.75), Color(0.25, 0.55, 0.30), Color(0.50, 0.50, 0.55), Color(0.75, 0.55, 0.1)]
@@ -18,12 +19,24 @@ const EPITHET := ["", "the Iron", "the Just", "the Lionheart", "the Conqueror", 
 # id -> [Arabic-able label key, number of options]
 const OPTS := {
 	"skin": 6, "hair": 5, "haircol": 6, "beard": 4, "eye": 5, "scar": 2, "patch": 2,
-	"helm": 3, "crown": 4, "gem": 5, "armor": 6, "cape": 7, "pauld": 3, "emblem": 4, "blade": 5, "epithet": 7,
+	"helm": 3, "crown": 4, "gem": 5, "armor": 6, "cape": 7, "pauld": 4, "emblem": 4, "blade": 5, "epithet": 7,
+	"helmt": 5, "crownt": 5, "chest": 4, "legs": 4, "boots": 4,
+	"hbreed": 4, "hcoat": 4, "hcap": 6,
 }
 const DEF := {
 	"skin": 1, "hair": 1, "haircol": 1, "beard": 1, "eye": 0, "scar": 0, "patch": 0,
 	"helm": 1, "crown": 0, "gem": 0, "armor": 0, "cape": 0, "pauld": 0, "emblem": 0, "blade": 0, "epithet": 0,
+	"helmt": 4, "crownt": 1, "chest": 1, "legs": 1, "boots": 1,
+	"hbreed": 0, "hcoat": 0, "hcap": 0,
 }
+
+# armor tiers, heavy -> light: [name, defence points, weight]
+const HELMT := [["Great helm", 10, 5.0], ["Bascinet", 7, 3.5], ["Kettle hat", 5, 2.5], ["Leather cap", 2, 0.8], ["No helmet", 0, 0.0]]
+const CHESTT := [["Plate armor", 22, 14.0], ["Mail hauberk", 15, 9.0], ["Leather jerkin", 8, 4.0], ["Cloth tunic", 2, 0.5]]
+const LEGST := [["Plate leggings", 10, 7.0], ["Mail chausses", 7, 5.0], ["Leather leggings", 4, 2.0], ["Cloth hose", 1, 0.3]]
+const BOOTST := [["Plate sabatons", 6, 4.0], ["Heavy boots", 4, 2.5], ["Leather boots", 2, 1.0], ["Sandals", 0, 0.2]]
+const PAULDT := [["Plain", 4, 3.0], ["Spiked", 4, 3.5], ["Fur", 2, 1.0], ["None", 0, 0.0]]
+
 
 
 static func merged(saved: Dictionary) -> Dictionary:
@@ -214,3 +227,83 @@ static func chest(u, torso: Node3D, L: Dictionary) -> void:
 				var a := float(i) / 5.0 * TAU
 				_p(u, torso, Vector3(0.04, 0.12, 0.03), gold, Vector3(sin(a) * 0.07, 0.38 + cos(a) * 0.07, 0.2), Vector3(0, 0, -a))
 			_p(u, torso, Vector3(0.06, 0.06, 0.035), red, Vector3(0, 0.38, 0.205))
+
+
+# horse breeds: [name, price, speed x, defence x (damage taken /), charge x, scale, note]
+const HBREEDS := [
+	["Hill pony", 0, 0.95, 0.75, 0.70, 0.92, "Cheap and nimble. Weak in a charge."],
+	["Courser", 400, 1.05, 1.00, 1.00, 1.00, "Balanced war horse."],
+	["Libyan barb", 800, 1.20, 0.80, 0.85, 1.00, "Very fast, light and fragile."],
+	["Destrier", 1200, 0.88, 1.30, 1.35, 1.10, "Heavy knight's mount. Slow but crushing."],
+]
+const HCOATS := ["Bay", "Chestnut", "Black", "Grey"]
+const HCAPS := [Color(1, 1, 1), Color(0.75, 0.2, 0.2), Color(0.25, 0.4, 0.85), Color(0.25, 0.6, 0.35), Color(0.55, 0.3, 0.7), Color(0.35, 0.35, 0.38)]
+const HCAPN := ["Original", "Crimson", "Azure", "Emerald", "Violet", "Charcoal"]
+
+
+# damage-taken multiplier of the horse (rider takes the hit through the horse)
+static func horse_dm(L: Dictionary) -> float:
+	var b: Array = HBREEDS[int(L.hbreed)]
+	return 1.0 / float(b[3])
+
+
+static func horse_speed(L: Dictionary) -> float:
+	var s: float = float(HBREEDS[int(L.hbreed)][2])
+	return s
+
+
+# builds the horse model for a look; sets breed scale and caparison tint. Returns the rig or null.
+static func build_horse(L: Dictionary):
+	L = merged(L)
+	var hr = Models.build("horse", int(L.hcoat) % maxi(1, Models.variant_count("horse")))
+	if hr == null:
+		return null
+	var br: Array = HBREEDS[int(L.hbreed)]
+	hr.root.scale = Vector3.ONE * float(br[5])
+	if int(L.hcap) > 0:
+		var tex = load(Models.MODEL_DIR + "tex/caparison_c_v%d.png" % int(L.hcap))
+		for mi in _meshes(hr.root):
+			for si in mi.get_surface_override_material_count():
+				var m = mi.get_active_material(si)
+				if m is StandardMaterial3D and String(m.resource_name) == "caparison":
+					var d: StandardMaterial3D = m.duplicate()
+					if tex is Texture2D:
+						d.albedo_texture = tex
+					mi.set_surface_override_material(si, d)
+	return hr
+
+
+static func _meshes(n: Node) -> Array:
+	var out := []
+	if n is MeshInstance3D:
+		out.append(n)
+	for c in n.get_children():
+		out.append_array(_meshes(c))
+	return out
+
+
+static func _tier(L: Dictionary) -> Array:
+	return [HELMT[int(L.helmt)], CHESTT[int(L.chest)], LEGST[int(L.legs)], BOOTST[int(L.boots)], PAULDT[int(L.pauld)]]
+
+
+static func armor_points(L: Dictionary) -> float:
+	var s := 0.0
+	for t in _tier(L):
+		s += float(t[1])
+	return s
+
+
+static func armor_weight(L: Dictionary) -> float:
+	var s := 0.0
+	for t in _tier(L):
+		s += float(t[2])
+	return s
+
+
+# damage taken multiplier (52 points -> about half) and move speed multiplier (heaviest set -> -18%)
+static func dmg_mult(L: Dictionary) -> float:
+	return 100.0 / (100.0 + armor_points(L) * 2.0)
+
+
+static func speed_mult(L: Dictionary) -> float:
+	return 1.0 - armor_weight(L) * 0.0055

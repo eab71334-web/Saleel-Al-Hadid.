@@ -13,6 +13,8 @@ static var king_name := ""
 static var trait_id := "warlord"
 static var diff := "normal"
 static var look: Dictionary = {}
+static var coins := 500
+static var horses := [0]   # owned breed indices
 static var castle: Dictionary = {}
 static var loaded := false
 
@@ -73,6 +75,8 @@ static func load_all() -> void:
 		trait_id = String(cf.get_value("p", "trait", "warlord"))
 		diff = String(cf.get_value("p", "diff", "normal"))
 		look = Dictionary(cf.get_value("p", "look", {}))
+		coins = int(cf.get_value("p", "coins", 500))
+		horses = Array(cf.get_value("p", "horses", [0]))
 		castle = Dictionary(cf.get_value("p", "castle", {}))
 	if daily_date != today():
 		daily_date = today()
@@ -91,6 +95,8 @@ static func save() -> void:
 	cf.set_value("p", "trait", trait_id)
 	cf.set_value("p", "diff", diff)
 	cf.set_value("p", "look", look)
+	cf.set_value("p", "coins", coins)
+	cf.set_value("p", "horses", horses)
 	cf.set_value("p", "castle", castle)
 	cf.save(PATH)
 
@@ -128,6 +134,7 @@ static func daily_today() -> Dictionary:
 static func add_renown(n: int) -> String:
 	var before := rank_index()
 	renown += n
+	coins += n * 3
 	save()
 	var after := rank_index()
 	return rank_name() if after > before else ""

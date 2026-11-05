@@ -32,7 +32,7 @@ def aim_y(T):
 def body_skin(p):
     _, i = tree.query(p)
     return [(order[int(Jb[i, k])], float(Wb[i, k])) for k in range(4) if Wb[i, k] > 0]
-def ext(domset, y, tol=0.012, side=None):
+def ext(domset, y, tol=0.03, side=None):
     m = np.array([d in domset for d in dom]) & (np.abs(V[:, 1] - y) < tol)
     if side is not None: m &= (V[:, 0] * side > 0)
     if m.sum() < 3: return None
@@ -49,7 +49,7 @@ def shell_rings(domset, ys, grow, side=None):
 
 def breastplate(M, kind, mat='steel', trim='gold'):
     wy = hp['root'][1]; ny = hp['neck01'][1]
-    ys = list(np.linspace(wy + 0.03, ny - 0.03, 9))
+    ys = list(np.linspace(ny - 0.03, wy + 0.03, 9))
     r = shell_rings({'spine05', 'spine03', 'spine01', 'root'}, ys, 0.014)
     if len(r) > 3:
         Vv, Ff = loft(r, 16, False, False)
@@ -94,7 +94,7 @@ def vambraces(M, mat='steel'):
 def greaves(M, mat='steel'):
     for sd, sg in (('L', 1), ('R', -1)):
         k = hp['lowerleg01.' + sd][1]; a = hp['foot.' + sd][1]
-        ys = np.linspace(a + 0.07, k - 0.02, 6)
+        ys = np.linspace(k - 0.02, a + 0.07, 6)
         r = shell_rings({'lowerleg01.' + sd, 'upperleg01.' + sd}, ys, 0.011, side=sg)
         if len(r) > 3:
             Vv, Ff = loft(r, 12, False, False); M.add(mat, Vv, Ff, wfn=body_skin)

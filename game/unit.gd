@@ -2,6 +2,9 @@ extends Node3D
 # A soldier: "sword", "archer", "cav" or "hero" (the player's commander).
 # Model faces +Z. Simulated only on the host; clients run it as a puppet.
 
+const KingRig := preload("res://game/kingrig.gd")
+const KL := preload("res://game/kinglook.gd")
+const ProfS := preload("res://game/profile.gd")
 const M_FOLLOW := 0
 const M_ADVANCE := 1
 const M_HOLD := 2
@@ -78,6 +81,10 @@ var move_in := Vector3.ZERO
 var buff_t := 0.0
 var rally_cd := 0.0
 var mount_cd := 0.0
+var look_L := {}
+var armor_dm := 1.0
+var armor_sp := 1.0
+var horse_L := {}          # the hero's horse look/breed (local player: saved profile)
 var mount_state := 0        # 0 none, 1 horse is coming, 2 mounting, 3 dismounting
 var mount_p := 0.0
 var mhorse: Node3D = null   # the player's own horse while it is not under the rider
@@ -264,7 +271,18 @@ func _build() -> void:
 	if is_ship:
 		_build_ship(tc)
 		return
-	var custom = Models.build(kind, randi() % maxi(1, Models.variant_count(kind)))
+	var custom = null
+	if hero:
+		custom = Models.build("king")
+		if custom != null:
+			var src: Dictionary = KL.force
+			if src.is_empty() and battle != null and "my_id" in battle and owner_id == battle.my_id:
+				src = ProfS.look
+			look_L = KL.merged(src)
+			armor_dm = KL.dmg_mult(look_L)
+			armor_sp = KL.speed_mult(look_L)
+	if custom == null:
+		custom = Models.build(kind, randi() % maxi(1, Models.variant_count(kind)))
 	if custom != null:
 		rig = custom
 		sc = 1.0
@@ -565,14 +583,30 @@ func _dress(hero: bool, tc: Color, cloth: Material, glow: Material, steel: Mater
 		_add(arm, _sph(0.06), _mat(Color(0.2, 0.5, 1.0), 0.2, 0.3, 0.9), Vector3(0, 0, -0.08))
 
 
+func _horse_look() -> Dictionary:
+	if kind == "hero" and battle != null and "my_id" in battle and owner_id == battle.my_id:
+		var hl := KL.merged(ProfS.look)
+		if not ProfS.horses.has(int(hl.hbreed)):
+			hl.hbreed = 0
+		return hl
+	return KL.merged({"hcoat": randi() % 4, "hbreed": 1, "hcap": 0})
+
+
+func _horse_rig():
+	horse_L = _horse_look()
+	var hr = KL.build_horse(horse_L)
+	if hr != null:
+		ride_y = Models.HORSE_RIDE_Y * float(KL.HBREEDS[int(horse_L.hbreed)][5])
+	return hr
+
+
 func _build_horse() -> void:
-	var hr = Models.build("horse", randi() % maxi(1, Models.variant_count("horse")))
+	var hr = _horse_rig()
 	if hr != null:
 		hrig = hr
 		horse = Node3D.new()
 		add_child(horse)
 		horse.add_child(hr.root)
-		ride_y = Models.HORSE_RIDE_Y
 		return
 	horse = Node3D.new()
 	add_child(horse)
@@ -634,7 +668,7 @@ func call_horse() -> void:
 	if mounted or mount_state != 0 or dead:
 		return
 	if mhorse == null or not is_instance_valid(mhorse):
-		var hr = Models.build("horse", randi() % maxi(1, Models.variant_count("horse")))
+		var hr = _horse_rig()
 		if hr == null:
 			set_mounted(true)
 			return
@@ -715,7 +749,7 @@ func _begin_mount() -> void:
 		mhorse.rotation = Vector3.ZERO
 		horse = mhorse
 		hrig = mhrig
-		ride_y = Models.HORSE_RIDE_Y
+		ride_y = Models.HORSE_RIDE_Y * (float(KL.HBREEDS[int(horse_L.hbreed)][5]) if not horse_L.is_empty() else 1.0)
 		mhorse = null
 		mount_state = 0
 		set_mounted(true)
@@ -732,7 +766,7 @@ func _begin_mount() -> void:
 	horse = mhorse
 	hrig = mhrig
 	horse.visible = true
-	ride_y = Models.HORSE_RIDE_Y
+	ride_y = Models.HORSE_RIDE_Y * (float(KL.HBREEDS[int(horse_L.hbreed)][5]) if not horse_L.is_empty() else 1.0)
 	mhorse = null
 	for l in legs:
 		l.visible = false
@@ -906,8 +940,10 @@ func _model_anim() -> void:
 # ---------------------------------------------------------------- simulation (host only)
 func spd() -> float:
 	var s := base_speed
+	if kind == "hero":
+		s *= armor_sp * (1.06 if not has_shield else 1.0)
 	if kind == "hero" and mounted:
-		s *= 1.85
+		s *= 1.85 * (KL.horse_speed(horse_L) if not horse_L.is_empty() else 1.0)
 	if kind == "hero" and owner_id < 0:
 		s *= 0.8
 	if buff_t > 0.0:
@@ -1486,7 +1522,7 @@ func _strike(t, mult: float, pw: bool) -> void:
 		d *= 1.35
 	var charge := (kind == "cav" or (kind == "hero" and mounted)) and sim_speed > 6.0
 	if charge:
-		d *= 1.7
+		d *= 1.7 * (float(KL.HBREEDS[int(horse_L.hbreed)][4]) if kind == "hero" and not horse_L.is_empty() else 1.0)
 	var to: Vector3 = t.position - position
 	to.y = 0.0
 	if to.length() > 0.01:
@@ -1552,6 +1588,9 @@ func rank_mult() -> float:
 func set_gear() -> void:
 	if rig == null:
 		return
+	if not look_L.is_empty():
+		KingRig.apply(rig.root, look_L, battle.team_col(team), sword_lv, has_shield)
+		return
 	var sh = rig.root.find_child("Shield", true, false)
 	if sh != null:
 		sh.visible = has_shield
@@ -1571,8 +1610,12 @@ func toggle_shield() -> void:
 func take_damage(a: float) -> void:
 	if dead:
 		return
-	if kind == "hero" and not has_shield:
-		a *= 1.2
+	if kind == "hero":
+		a *= armor_dm
+		if mounted and not horse_L.is_empty():
+			a *= KL.horse_dm(horse_L)
+		if not has_shield:
+			a *= 1.2
 	if battle != null and battle.kingdom != null:
 		a *= battle.kingdom.armor_mult(team, kind)
 	hp -= a

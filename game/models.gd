@@ -15,7 +15,7 @@ const ANIM_DIR := "res://game/anims/"
 const EXTS := [".glb", ".gltf", ".fbx", ".tscn"]
 
 # Tuning: final height of each model in metres.
-const HEIGHTS := {"sword": 1.8, "archer": 1.8, "cav": 1.8, "hero": 2.1, "horse": 2.0, "villager": 1.7}
+const HEIGHTS := {"sword": 1.8, "archer": 1.8, "cav": 1.8, "hero": 2.1, "king": 2.1, "horse": 2.0, "villager": 1.7}
 # How high the rider sits when a custom horse model is used.
 const HORSE_RIDE_Y := 0.82
 

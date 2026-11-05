@@ -8,32 +8,39 @@ const UnitS := preload("res://game/unit.gd")
 const RigS := preload("res://game/rig.gd")
 const ProfS := preload("res://game/profile.gd")
 const LocS := preload("res://game/loc.gd")
+const Models := preload("res://game/models.gd")
 const UiFx := preload("res://game/uifx.gd")
 
 const GOLD := Color(1.0, 0.82, 0.35)
 
 const TABS := [
 	["Face", ["skin", "eye", "hair", "haircol", "beard", "scar", "patch"]],
-	["Crown", ["helm", "crown", "gem"]],
-	["Armor", ["armor", "cape", "pauld", "emblem"]],
+	["Head", ["helmt", "crownt", "gem"]],
+	["Armor", ["chest", "pauld", "legs", "boots", "armor", "cape", "emblem"]],
 	["Arms", ["blade", "epithet"]],
+	["Horse", ["hbreed", "hcoat", "hcap"]],
 ]
+const HORSE_TAB := 4
+const STAT_IDS := ["helmt", "chest", "pauld", "legs", "boots", "armor", "crownt", "gem", "cape", "emblem"]
 const NAMES := {
 	"skin": "Skin", "eye": "Eyes", "hair": "Hair", "haircol": "Hair color", "beard": "Beard", "scar": "Scar", "patch": "Eye patch",
 	"helm": "Headgear", "crown": "Crown", "gem": "Gem", "armor": "Armor", "cape": "Cape", "pauld": "Shoulders",
 	"emblem": "Chest emblem", "blade": "Blade", "epithet": "Title",
+	"helmt": "Helmet", "crownt": "Crown", "chest": "Chest armor", "legs": "Trousers", "boots": "Boots",
+	"hbreed": "Horse breed", "hcoat": "Coat", "hcap": "Caparison",
 }
 const VALS := {
 	"hair": ["Bald", "Short", "Long", "Topknot", "Mohawk"],
 	"beard": ["Clean", "Stubble", "Full beard", "Braided beard"],
 	"helm": ["Helmet + crown", "Crown only", "Helmet only"],
 	"crown": ["Spiked", "Arched", "Laurel", "Horned"],
-	"pauld": ["Plain", "Spiked", "Fur"],
+	"crownt": ["No crown", "Spiked", "Arched", "Laurel", "Horned"],
+	"pauld": ["Plain", "Spiked", "Fur", "None"],
 	"emblem": ["None", "Cross", "Diamond", "Star"],
 	"scar": ["No", "Yes"], "patch": ["No", "Yes"],
 	"epithet": ["No title", "the Iron", "the Just", "the Lionheart", "the Conqueror", "the Wise", "the Black"],
 }
-const COLORS := ["skin", "eye", "haircol", "gem", "armor", "cape", "blade"]
+const COLORS := ["skin", "eye", "haircol", "gem", "armor", "cape", "blade", "hcap"]
 
 class Stub extends Node:
 	var HORSE_RIDING := false
@@ -74,6 +81,11 @@ var pinch_d := 0.0
 var t_all := 0.0
 var lights: Array = []
 var _built := false
+var horse_mode := false
+var horse_rig = null
+var stats: Label
+var fade: ColorRect
+var coin_lbl: Label
 
 
 func _ready() -> void:
@@ -161,6 +173,16 @@ func _make_ui() -> void:
 	fs.set_border_width_all(3)
 	frame.add_theme_stylebox_override("panel", fs)
 	add_child(frame)
+	fade = ColorRect.new()
+	fade.color = Color(0, 0, 0, 0)
+	fade.anchor_right = 0.6
+	fade.anchor_bottom = 1.0
+	fade.offset_left = 10
+	fade.offset_top = 10
+	fade.offset_bottom = -10
+	fade.offset_right = -6
+	fade.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(fade)
 	# name plate
 	plate = _lbl(self, "", 34, GOLD)
 	plate.anchor_left = 0.0
@@ -220,6 +242,8 @@ func _make_ui() -> void:
 		var b := _btn(th, TABS[i][0], func(): _show_tab(idx), 0, 50, 21)
 		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		tab_btns.append(b)
+	stats = _lbl(vb, "", 20, Color(0.85, 0.95, 0.8))
+	stats.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	var sc := ScrollContainer.new()
 	sc.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
@@ -232,12 +256,16 @@ func _make_ui() -> void:
 	ab.add_theme_constant_override("separation", 8)
 	vb.add_child(ab)
 	var rb := _btn(ab, "Randomize", func():
+		var keep := {"hbreed": L.hbreed, "hcoat": L.hcoat, "hcap": L.hcap}
 		L = KL.random_look()
+		L.merge(keep, true)
 		_changed("skin")
 		_show_tab(tab), 0, 54, 21)
 	rb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	var rs := _btn(ab, "Reset", func():
+		var keep := {"hbreed": L.hbreed, "hcoat": L.hcoat, "hcap": L.hcap}
 		L = KL.DEF.duplicate()
+		L.merge(keep, true)
 		_changed("skin")
 		_show_tab(tab), 0, 54, 21)
 	rs.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -246,8 +274,30 @@ func _make_ui() -> void:
 	done.add_theme_stylebox_override("hover", _styled(Color(0.7, 0.18, 0.12, 1), Color(1, 0.9, 0.5)))
 
 
+func _update_stats() -> void:
+	if stats == null:
+		return
+	if tab == HORSE_TAB:
+		stats.text = "%s: %d" % [LocS.t("Gold"), ProfS.coins]
+		return
+	stats.text = "%s %d   %s %.1f   %s -%d%%   %s %d%%" % [LocS.t("Defence"), roundi(KL.armor_points(L)), LocS.t("Weight"), KL.armor_weight(L), LocS.t("Damage"), roundi((1.0 - KL.dmg_mult(L)) * 100.0), LocS.t("Speed"), roundi(KL.speed_mult(L) * 100.0)]
+
+
 func _show_tab(i: int) -> void:
+	var want_horse := (i == HORSE_TAB)
+	if want_horse != horse_mode and _built:
+		# cinematic transition: fade to black, swap king <-> horse, pull the camera, fade back in
+		var tw := create_tween()
+		tw.tween_property(fade, "color:a", 1.0, 0.28)
+		tw.tween_callback(func():
+			horse_mode = want_horse
+			_rebuild_king()
+			dist = 7.5 if want_horse else 6.0
+			_focus(5.4 if want_horse else 3.4, 0.9 if want_horse else 0.0))
+		tw.tween_property(fade, "color:a", 0.0, 0.45)
+	horse_mode = want_horse if not _built else horse_mode
 	tab = i
+	_update_stats()
 	for j in tab_btns.size():
 		var b: Button = tab_btns[j]
 		if j == i:
@@ -263,8 +313,23 @@ func _show_tab(i: int) -> void:
 		_row(id)
 
 
+func _tier_name(id: String, v: int) -> String:
+	match id:
+		"helmt": return KL.HELMT[v][0]
+		"chest": return KL.CHESTT[v][0]
+		"legs": return KL.LEGST[v][0]
+		"boots": return KL.BOOTST[v][0]
+		"pauld": return KL.PAULDT[v][0]
+		"hbreed": return KL.HBREEDS[v][0]
+		"hcoat": return KL.HCOATS[v]
+		"hcap": return KL.HCAPN[v]
+	return ""
+
+
 func _val_text(id: String) -> String:
 	var v: int = int(L[id])
+	if _tier_name(id, v) != "":
+		return LocS.t(_tier_name(id, v))
 	if VALS.has(id):
 		return LocS.t(VALS[id][v])
 	if id == "cape" and v == 0:
@@ -282,6 +347,7 @@ func _swatch(id: String) -> Color:
 		"armor": return KL.ARMOR[v][0]
 		"cape": return Color(0.72, 0.12, 0.12) if v == 0 else KL.CAPE[v]
 		"blade": return KL.BLADE[v]
+		"hcap": return KL.HCAPS[v]
 	return Color.WHITE
 
 
@@ -309,17 +375,54 @@ func _row(id: String) -> void:
 		L[id] = posmod(int(L[id]) + d, n)
 		refresh.call()
 		_changed(id)
+		if id == "hbreed":
+			_show_tab(tab)
 	_btn(h, "<", func(): step.call(-1), 64, 54, 26)
 	if COLORS.has(id):
 		h.add_child(sw)
 	h.add_child(val)
 	_btn(h, ">", func(): step.call(1), 64, 54, 26)
 	refresh.call()
+	if id == "hbreed":
+		_breed_box(box)
+
+
+# stats + buy button under the breed row
+func _breed_box(box: VBoxContainer) -> void:
+	var b: Array = KL.HBREEDS[int(L.hbreed)]
+	var info := _lbl(box, "", 19, Color(0.85, 0.9, 1.0))
+	info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	info.text = "%s\n%s %d%%   %s %d%%   %s %d%%" % [LocS.t(String(b[6])), LocS.t("Speed"), roundi(float(b[2]) * 100.0), LocS.t("Armor"), roundi(float(b[3]) * 100.0), LocS.t("Charge"), roundi(float(b[4]) * 100.0)]
+	if ProfS.horses.has(int(L.hbreed)):
+		_lbl(box, "Owned", 20, Color(0.5, 1.0, 0.55))
+	else:
+		var price: int = int(b[1])
+		var bb := _btn(box, LocS.t("Buy") + "  " + str(price), func(): _buy(), 0, 52, 24)
+		bb.disabled = ProfS.coins < price
+		bb.add_theme_stylebox_override("normal", _styled(Color(0.45, 0.32, 0.08), Color(1, 0.85, 0.4)))
+
+
+func _buy() -> void:
+	var i: int = int(L.hbreed)
+	var price: int = int(KL.HBREEDS[i][1])
+	if ProfS.coins >= price and not ProfS.horses.has(i):
+		ProfS.coins -= price
+		ProfS.horses.append(i)
+		ProfS.save()
+		_show_tab(tab)
+		_update_stats()
 
 
 func _changed(id: String) -> void:
 	_rebuild_king()
+	_update_stats()
 	match id:
+		"hbreed", "hcoat", "hcap":
+			_focus(5.2, 0.9)
+		"helmt", "crownt":
+			_focus(2.2, 0.45)
+		"chest", "legs", "boots":
+			_focus(5.4 if id != "chest" else 3.4, 0.0)
 		"skin", "eye", "hair", "haircol", "beard", "scar", "patch":
 			_focus(1.7, 0.35)
 		"helm", "crown", "gem":
@@ -347,6 +450,8 @@ func _go(d: float, y: float) -> void:
 
 
 func _save_back() -> void:
+	if not ProfS.horses.has(int(L.hbreed)):
+		L.hbreed = ProfS.horses[0] if not ProfS.horses.is_empty() else 0
 	ProfS.look = L.duplicate()
 	ProfS.save()
 	KL.force = {}
@@ -500,6 +605,12 @@ func _spawn():
 	u.setup("hero", 0, 1, stub)
 	u.process_mode = Node.PROCESS_MODE_DISABLED
 	u.position = Vector3(0, 0.18, 0)
+	if horse_mode:
+		u.body.visible = false
+		horse_rig = KL.build_horse(L)
+		if horse_rig != null:
+			u.add_child(horse_rig.root)
+			Models.play(horse_rig, "idle")
 	if u.bar != null:
 		u.bar.visible = false
 	return u
