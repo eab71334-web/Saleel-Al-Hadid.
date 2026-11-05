@@ -1,6 +1,7 @@
 # Professional-style procedural animation set for the MakeHuman rig (keyframed in "pose parameter" space, eased, with
 # anticipation / follow-through / overlap). Returns clips as (name, duration, fn(t)->(pose, root_offset), loop).
 import math
+import numpy as np
 ARM = 1.2
 PI = math.pi
 
@@ -11,7 +12,8 @@ def ease_in(x): x = max(0.0, min(1.0, x)); return x ** 3
 DEF = dict(ry=0, dx=0, dy=0, dz=0, rroll=0, rpitch=0,
            lean=0, yaw=0, roll=0, hpitch=0, hyaw=0, hroll=0,
            raf=0, rao=0, rae=0, rat=0, laf=0, lao=0, lae=0, lat=0,
-           rlf=0, rlk=0, rlp=0, rlo=0, llf=0, llk=0, llp=0, llo=0, shr=0, shl=0, wr=0, wl=0)
+           rlf=0, rlk=0, rlp=0, rlo=0, llf=0, llk=0, llp=0, llo=0, shr=0, shl=0, wr=0, wl=0,
+           ikw=0, aimy=0.0, hr=0.0, tl0=0, tl1=0, tl2=0, tr0=0, tr1=0, tr2=0)
 
 def kf(t, keys):
     """keys: [(time, {param: value})...] -> eased interpolation of every parameter present in any key"""
@@ -39,7 +41,7 @@ def arm_euler(side, fwd, out, elbow, twist):
     fa = (0, (-elbow if side == 'L' else elbow), 0)
     return up, fa
 
-def to_pose(p, kind='melee'):
+def _to_pose(p, kind='melee'):
     P = {}
     def add(b, x=0, y=0, z=0):
         c = P.get(b, (0, 0, 0)); P[b] = (c[0] + x, c[1] + y, c[2] + z)
@@ -61,8 +63,79 @@ def to_pose(p, kind='melee'):
     return P, [p['dx'], p['dy'], p['dz']]
 
 # stance helpers --------------------------------------------------------------------------
+
+# ---------------------------------------------------------------- two-bone arm IK (archers) --------------------------
+_B = None           # dict(hp=..., parents=..., order=...) of the character being exported
+FRAMES = {}         # bone -> (up_local, fwd_local) of bow/arrow in wrist bone space, set by gear.bow()
+def set_base(base):
+    global _B
+    _B = dict(hp={k: np.array(v, float) for k, v in base['hp'].items()}, parents=base['parents'], order=base['order'])
+
+def _rot(ax, a):
+    c, s_ = math.cos(a), math.sin(a)
+    return [np.array([[1, 0, 0], [0, c, -s_], [0, s_, c]]), np.array([[c, 0, s_], [0, 1, 0], [-s_, 0, c]]), np.array([[c, -s_, 0], [s_, c, 0], [0, 0, 1]])][ax]
+def _eul(x=0, y=0, z=0): return _rot(2, z) @ _rot(1, y) @ _rot(0, x)
+def _eul_inv(R):
+    b = math.asin(max(-1.0, min(1.0, -R[2, 0]))); return (math.atan2(R[2, 1], R[2, 2]), b, math.atan2(R[1, 0], R[0, 0]))
+def _arc(a, b):
+    a = a / np.linalg.norm(a); b = b / np.linalg.norm(b); v = np.cross(a, b); c = float(a @ b)
+    if c < -0.9999:
+        ax = np.cross(a, [0, 0, 1.0]); ax /= np.linalg.norm(ax); return 2 * np.outer(ax, ax) - np.eye(3)
+    K = np.array([[0, -v[2], v[1]], [v[2], 0, -v[0]], [-v[1], v[0], 0]]); return np.eye(3) + K + K @ K / (1 + c)
+def _fk(P):
+    hp = _B['hp']; par = _B['parents']; R = {}; Pp = {}
+    for b in _B['order']:
+        Rl = _eul(*P.get(b, (0, 0, 0))); pr = par[b]
+        if pr: R[b] = R[pr] @ Rl; Pp[b] = Pp[pr] + R[pr] @ (hp[b] - hp[pr])
+        else: R[b] = Rl; Pp[b] = hp[b].copy()
+    return R, Pp
+def _ik_arms(P, p):
+    hp = _B['hp']; par = _B['parents']
+    R, Pp = _fk(P)
+    aim = np.array([0.0, p['aimy'], 1.0]); aim /= np.linalg.norm(aim); up = np.array([0.0, 1.0, -p['aimy']]); up /= np.linalg.norm(up)
+    hr = p['hr']
+    for side in ('L', 'R'):
+        ua, la, wr = 'upperarm01.' + side, 'lowerarm01.' + side, 'wrist.' + side
+        T = np.array([p['t' + side.lower() + str(i)] for i in range(3)])
+        hint = np.array([0.3, -1.0, -0.2]) if side == 'L' else (np.array([-0.3, -1.0, -0.2]) * (1 - hr) + np.array([-0.5, 0.15, -1.0]) * hr)
+        S = Pp[ua]; L1 = np.linalg.norm(hp[la] - hp[ua]); L2 = np.linalg.norm(hp[wr] - hp[la])
+        v = T - S; d = min(np.linalg.norm(v), L1 + L2 - 1e-3); u = v / np.linalg.norm(v)
+        a = (L1 * L1 - L2 * L2 + d * d) / (2 * d); h = math.sqrt(max(L1 * L1 - a * a, 1e-6))
+        pe = hint - (hint @ u) * u; pe /= np.linalg.norm(pe)
+        E = S + a * u + h * pe; Tw = S + d * u
+        ru = (hp[la] - hp[ua]) / L1; rf = (hp[wr] - hp[la]) / L2
+        Rwu = _arc(ru, E - S); Rl = _arc(Rwu @ rf, Tw - E) @ Rwu
+        P[ua] = _eul_inv(R[par[ua]].T @ Rwu); P[la] = _eul_inv(Rwu.T @ Rl)
+        R[ua] = Rwu; R[la] = Rl
+        fr = FRAMES.get(wr)
+        if fr is not None:
+            bu, bf = fr; bu = np.array(bu); bf = np.array(bf)
+            A = np.array([up, aim, np.cross(up, aim)]).T; Bm = np.array([bu, bf, np.cross(bu, bf)]).T
+            Rw = A @ Bm.T
+            P[wr] = _eul_inv(Rl.T @ Rw)
+    return P
+
+def to_pose(p, kind='melee'):
+    P, off = _to_pose(p, kind)
+    if p.get('ikw', 0) > 0.5 and _B is not None:
+        P = _ik_arms(P, p)
+    return P, off
+
+# archery: ready (arrow nocked, bow forward, string hand just behind the grip) and full draw (side-on, anchor at the face)
+READY = dict(ikw=1, aimy=0.22, hr=0.0, ry=-0.3, yaw=-0.1, lean=0.03, hyaw=0.3, tl0=0.17, tl1=1.08, tl2=0.36, tr0=0.12, tr1=1.08, tr2=0.23,
+             rlf=-0.12, llf=0.14, rlk=0.22, llk=0.26, rlo=0.14, llo=0.1, dy=-0.04)
+DRAW_BODY = dict(ry=-0.95, yaw=-0.1, hyaw=1.0, lean=0.0, rlf=-0.1, llf=0.12, rlk=0.1, llk=0.1, rlo=0.2, llo=0.2, dy=-0.03)
+def draw_pose():
+    p = dict(DEF, **DRAW_BODY, ikw=0)
+    P0, _ = _to_pose(p, 'archer'); R, Pp = _fk(P0)
+    aim = np.array([0.0, 0.03, 1.0]); aim /= np.linalg.norm(aim)
+    tl = Pp['upperarm01.L'] + 0.585 * aim
+    anchor = Pp['head'] + R['head'] @ np.array([-0.045, 0.065, 0.10])
+    tr = anchor - 0.07 * aim
+    return dict(DRAW_BODY, ikw=1, aimy=0.03, hr=1.0, tl0=tl[0], tl1=tl[1], tl2=tl[2], tr0=tr[0], tr1=tr[1], tr2=tr[2])
+
 def guard(kind):
-    if kind == 'archer': return dict(raf=0.55, rae=1.0, rao=0.15, laf=0.7, lae=0.7, lao=0.1)
+    if kind == 'archer': return dict(READY)
     if kind == 'civ': return dict(raf=0.08, rae=0.25, laf=0.08, lae=0.25)
     if kind == 'ride': return dict(raf=0.7, rae=0.9, laf=0.7, lae=0.9)
     # historical ready stance: knees bent, weight low, lead (shield-side) foot forward, trailing foot turned out, body half-turned
@@ -201,11 +274,12 @@ def attack_bash(kind):
 
 def attack_bow():
     def f(t):
-        base = guard('archer')
-        raise_ = dict(base, laf=1.55, lao=ARM, lae=0.0, raf=1.2, rao=ARM - 0.2, rae=2.1, yaw=0.3, lean=0.0, rlk=0.1, llk=0.1, hyaw=-0.5, rlf=0.2, llf=-0.2, dy=-0.04)
-        draw = dict(raise_, raf=1.3, rae=2.4, yaw=0.38, rat=0.4, shr=0.15, dy=-0.05)
-        rel = dict(draw, raf=0.9, rae=1.2, rao=ARM + 0.4, shr=0.0, yaw=0.3, hroll=0.05, lean=-0.03)
-        keys = [(0.0, base), (0.26, raise_), (0.6, draw), (0.68, draw), (0.74, rel), (0.86, dict(rel, laf=1.4, lae=0.15)), (1.0, base)]
+        rd = dict(READY); dr = draw_pose()
+        raise_ = dict(rd, ry=-0.6, yaw=-0.1, hyaw=0.6, hr=0.5, aimy=0.1, tl0=0.2, tl1=1.2, tl2=0.5, tr0=0.1, tr1=1.15, tr2=0.3)
+        hold = dict(dr, tr2=dr['tr2'] + 0.004, tl1=dr['tl1'] + 0.004)
+        rel = dict(dr, tr0=dr['tr0'] - 0.05, tr1=dr['tr1'] - 0.03, tr2=dr['tr2'] - 0.12, hr=1.0, shl=0.05)
+        fol = dict(rel, tr2=dr['tr2'] - 0.1, tr1=dr['tr1'] - 0.1, tl1=dr['tl1'] - 0.02)
+        keys = [(0.0, rd), (0.22, raise_), (0.55, dr), (0.68, hold), (0.72, rel), (0.82, fol), (1.0, rd)]
         return to_pose(kf(t, keys), 'archer')
     return f
 
@@ -219,6 +293,7 @@ def attack_civ():
 def die(kind, mode):
     def f(t):
         base = guard(kind)
+        if kind == 'archer': base = dict(base, ikw=0, raf=0.4, rae=0.9, rao=0.2, laf=0.5, lae=0.8, lao=0.1)
         if mode == 0:   # collapse and fall on the back
             keys = [(0.0, base),
                     (0.16, dict(base, lean=-0.18, hpitch=-0.3, rao=0.8, lao=0.6, rlk=0.5, llk=0.4, dy=-0.08)),

@@ -12,9 +12,9 @@ def use(base):
     V = base['V']; F = base['F']; Jb = base['J']; Wb = base['W']; dom = base['dom']; hp = base['hp']; order = base['order']; PARENTS = base['parents']
     tree = cKDTree(V)
 
-def setpose(kind):
+def setpose(kind, params=None):
     import anim
-    p = dict(anim.DEF, **anim.guard(kind)); P, _ = anim.to_pose(p, kind)
+    p = dict(anim.DEF, **anim.guard(kind)) if params is None else dict(anim.DEF, **params); P, _ = anim.to_pose(p, 'archer' if kind == 'archer' else 'melee')
     FK_R.clear(); FK_P.clear()
     for b in order:
         par = PARENTS[b]; Rl = euler(*P.get(b, (0, 0, 0)))
@@ -197,17 +197,67 @@ def cape(M, col):
     Vv, Ff = loft(rings, 8, False, False)
     M.add('cloth', Vv, Ff, color=col, bone='spine01', smooth=True)
 
+def rest_blend(Vp, wts):
+    A = sum(w * FK_R[b] for b, w in wts); t = sum(w * (FK_P[b] - FK_R[b] @ np.array(hp[b])) for b, w in wts)
+    return np.linalg.solve(A, np.array(Vp) - t)
+
 def bow(M):
-    bone = 'wrist.L'; pw = FK_P[bone]
-    def put(Vc, Ff, mat, col=(1, 1, 1), smooth=True):
-        Vp = pw + np.array([0.0, 0.0, 0.05]) + np.array(Vc)
-        M.add(mat, to_rest(bone, Vp), Ff, color=col, bone=bone, smooth=smooth)
+    import anim
+    dp = anim.draw_pose(); anim.FRAMES.clear()
+    aim = np.array([0.0, dp['aimy'], 1.0]); aim /= np.linalg.norm(aim); up = np.array([0.0, 1.0, -dp['aimy']]); up /= np.linalg.norm(up)
+    setpose('archer', dp)
+    for side in ('L', 'R'):
+        Rw = FK_R['wrist.' + side]; anim.FRAMES['wrist.' + side] = ((Rw.T @ up).tolist(), (Rw.T @ aim).tolist())
+    setpose('archer', dp)
+    side_v = np.cross(up, aim)
+    Gp = FK_P['wrist.L'] + 0.035 * aim
+    mid = FK_P['wrist.R'] + 0.07 * aim
+    # --- bow stave (wood) bound to the bow hand
     rings = []
-    for t in np.linspace(-1, 1, 11):
-        rings.append((np.array([0, 0.52 * t, 0.11 * (1 - t * t)]), (0.014 * (1.1 - abs(t) * 0.5), 0, 0), (0, 0, 0.016 * (1.1 - abs(t) * 0.5))))
-    Vv, Ff = loft(rings, 8, True, True); put(Vv, Ff, 'wood')
-    Vv, Ff = box((0, 0, 0.11), (0.03, 0.12, 0.034)); put(Vv, Ff, 'leather', smooth=False)
-    Vv, Ff = box((0, 0, -0.0), (0.004, 1.04, 0.004)); put(Vv, Ff, 'cloth', (0.95, 0.92, 0.8), smooth=False)
+    for t in np.linspace(-1, 1, 13):
+        c = Gp + up * 0.52 * t - aim * 0.11 * t * t
+        w = 0.014 * (1.15 - abs(t) * 0.55)
+        rings.append((c, side_v * w, aim * w * 1.15))
+    Vv, Ff = loft(rings, 8, True, True); M.add('wood', to_rest('wrist.L', Vv), Ff, bone='wrist.L')
+    Vv, Ff = box(Gp, (0.03, 0.14, 0.035), None); 
+    for k, (a_, b_) in enumerate(((0.52, -0.11),)):
+        pass
+    # grip wrap
+    rr = [(Gp + up * y, side_v * 0.019, aim * 0.021) for y in (-0.07, 0.07)]
+    Vg, Fg = loft(rr, 8, True, True); M.add('leather', to_rest('wrist.L', Vg), Fg, bone='wrist.L')
+    # --- string: tips on the bow, middle follows the string hand
+    tipT = Gp + up * 0.52 - aim * 0.11; tipB = Gp - up * 0.52 - aim * 0.11
+    pts = [tipT + (mid - tipT) * k / 5 for k in range(6)] + [mid + (tipB - mid) * k / 5 for k in range(1, 6)]
+    rings = [(p_, side_v * 0.0035, aim * 0.0035) for p_ in pts]
+    Vs, Fs = loft(rings, 4, False, False)
+    # per-vertex blend: weight along the polyline
+    verts = []; jw = []
+    n = len(pts)
+    for k, p_ in enumerate(pts):
+        r = abs(k - 5) / 5.0               # 0 at the middle -> 1 at tips
+        wR = 1.0 - r; wL = r
+        for q in range(4):
+            wts = [('wrist.L', wL), ('wrist.R', wR)]; wts = [(b, w) for b, w in wts if w > 1e-4]
+            jw.append(wts)
+    Vrest = np.array([rest_blend(Vs[i], jw[i]) for i in range(len(Vs))])
+    M.add('cloth', Vrest, Fs, color=(0.93, 0.9, 0.78), smooth=True, jw=jw)
+    # --- nocked arrow, rigid on the string hand
+    L = float((Gp + aim * 0.13 - mid) @ aim)
+    rings = [(mid + aim * l, side_v * 0.0045, up * 0.0045) for l in np.linspace(0.0, L - 0.05, 4)]
+    Va, Fa = loft(rings, 6, True, True); M.add('wood', to_rest('wrist.R', Va), Fa, bone='wrist.R')
+    Vh, Fh = lathe([(0.001, 0.0), (0.011, 0.0), (0.001, 0.07)], 6, np.zeros(3), 1)
+    # arrow head: lathe along +y -> rotate to aim
+    Rq = aim_y(aim); Vh = (Vh @ Rq.T) + (mid + aim * (L - 0.05)); M.add('steel', to_rest('wrist.R', Vh), Fh, bone='wrist.R')
+    for k in range(3):
+        a = 2 * math.pi * k / 3
+        off = (side_v * math.cos(a) + up * math.sin(a)) * 0.012
+        Vf, Ff = box(mid + aim * 0.05 + off, (0.003, 0.003, 0.05), None) if False else (None, None)
+    for k in range(3):
+        a = 2 * math.pi * k / 3 + 0.5
+        d_ = side_v * math.cos(a) + up * math.sin(a)
+        c0 = mid + aim * 0.045
+        Vf = np.array([c0, c0 + d_ * 0.022, c0 + d_ * 0.022 + aim * 0.06, c0 + aim * 0.06]); Ff = np.array([[0, 1, 2], [0, 2, 3], [0, 2, 1], [0, 3, 2]])
+        M.add('cloth', to_rest('wrist.R', Vf), Ff, color=(0.8, 0.15, 0.12), smooth=False, bone='wrist.R')
 
 def quiver(M):
     s = np.array(hp['spine01']) + np.array([0.03, -0.16, -0.17])

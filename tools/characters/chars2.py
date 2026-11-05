@@ -212,6 +212,7 @@ def build(ch, outdir):
     head_cell = ch.get('head_cell', 0.0)
     base = B.build(ch['spec'], head_cell=head_cell, body_cell=ch.get('body_cell', 0.024))
     G.use(base)
+    import anim as _A; _A.set_base(base); _A.FRAMES.clear()
     G.setpose('archer' if ch['kind'] == 'archer' else ('civ' if ch['kind'] == 'villager' else 'melee'))
     M = Model(base['order'], base['parents'], {b: base['hp'][b] for b in base['order']})
     col = paint(base, ch)

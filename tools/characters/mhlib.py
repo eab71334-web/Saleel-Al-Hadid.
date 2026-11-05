@@ -162,7 +162,7 @@ class Model:
         self.bidx = {b: i for i, b in enumerate(bones)}
         self.prims = {}   # (part, material) -> dict of lists
         self.part = None
-    def add(self, mat, V, F, color=(1, 1, 1), bone='root', smooth=True, wfn=None, uvscale=1.6, colfn=None, uvs=None, colors=None):
+    def add(self, mat, V, F, color=(1, 1, 1), bone='root', smooth=True, wfn=None, uvscale=1.6, colfn=None, uvs=None, colors=None, jw=None):
         V = np.array(V, float); F = np.array(F)
         P = self.prims.setdefault((self.part, mat), dict(pos=[], nrm=[], uv=[], col=[], j=[], w=[], idx=[], n=0))
         if smooth:
@@ -184,7 +184,10 @@ class Model:
         if uvs is not None and smooth: uv = np.array(uvs, float)
         n = len(VV)
         J = np.zeros((n, 4), np.uint16); W = np.zeros((n, 4), np.float32)
-        if wfn is None:
+        if jw is not None:
+            for i in range(n):
+                for k, (b, w) in enumerate(jw[i][:4]): J[i, k] = self.bidx[b]; W[i, k] = w
+        elif wfn is None:
             J[:, 0] = self.bidx[bone]; W[:, 0] = 1
         else:
             for i in range(n):

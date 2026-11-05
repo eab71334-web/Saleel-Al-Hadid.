@@ -560,7 +560,7 @@ func _dress(hero: bool, tc: Color, cloth: Material, glow: Material, steel: Mater
 
 
 func _build_horse() -> void:
-	var hr = Models.build("horse")
+	var hr = Models.build("horse", randi() % maxi(1, Models.variant_count("horse")))
 	if hr != null:
 		hrig = hr
 		horse = Node3D.new()
@@ -734,6 +734,8 @@ func _model_anim() -> void:
 			hw = "run"
 		elif sim_speed > 0.4:
 			hw = "walk"
+		elif absf(_yaw_rate) > 1.0:
+			hw = "turnl" if _yaw_rate > 0.0 else "turnr"
 		var hu: String = Models.play(hrig, hw)
 		if hu == "walk" and hrig.player != null:
 			hrig.player.speed_scale = clampf(sim_speed / 3.0, 0.6, 1.8)
