@@ -1,0 +1,32 @@
+name: Unreal feasibility check
+# Tests whether this repo's runner can pull Epic's Unreal Engine container (needs your Epic account linked to GitHub
+# and a Personal Access Token (classic, scope read:packages) saved as the repo secret GHCR_PAT).
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Unreal image tag"
+        default: "dev-slim-5.4"
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Free disk space
+        run: |
+          df -h /
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL /usr/local/share/boost
+          sudo docker image prune -af || true
+          df -h /
+      - name: Login to ghcr.io
+        env:
+          PAT: ${{ secrets.GHCR_PAT }}
+        run: |
+          if [ -z "$PAT" ]; then echo "Secret GHCR_PAT is missing"; exit 1; fi
+          echo "$PAT" | docker login ghcr.io -u eab71334-web --password-stdin
+      - name: Inspect image manifest
+        run: docker manifest inspect ghcr.io/epicgames/unreal-engine:${{ inputs.tag }} | head -60
+      - name: Try pulling the image
+        run: |
+          docker pull ghcr.io/epicgames/unreal-engine:${{ inputs.tag }}
+          df -h /
+          docker images
