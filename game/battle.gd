@@ -20,6 +20,7 @@ const HOLD := 2
 const CHARGE := 3
 const RETREAT := 4
 const KIND_IDS := ["sword", "archer", "cav", "hero", "villager", "ballista", "catapult", "ship", "transport", "fisher"]
+const Cinema := preload("res://game/cinema.gd")
 const LocS := preload("res://game/loc.gd")
 const SettingsS := preload("res://game/settings.gd")
 const MODE_NAMES := ["Follow me", "Advance", "Hold here", "Charge!", "Retreat"]
@@ -48,6 +49,8 @@ var intro := true
 var over := false
 var winner_team := -1
 var cam: Camera3D
+var rain_fx = null
+var cine_t := 0.0
 var cam_yaw := 0.0
 var loc_t := 0.0
 var cam_pitch := 0.38
@@ -290,10 +293,13 @@ func _build_world() -> void:
 	sun.shadow_enabled = true
 	sun.directional_shadow_max_distance = 75.0
 	add_child(sun)
+	Cinema.grade(env, sun, sm)
+	Cinema.overlay(self)
+	rain_fx = Cinema.rain(self)
 
 	cam = Camera3D.new()
 	cam.far = 500.0
-	cam.fov = 66.0
+	cam.fov = 58.0 if Cinema.on() else 66.0
 	cam.current = true
 	add_child(cam)
 
@@ -2417,10 +2423,22 @@ func _update_camera(dt: float, h) -> void:
 	var dist := cam_dist * (1.4 if (alive and h.mounted) else 1.0)
 	if not alive:
 		dist = 22.0
+	var cin: bool = Cinema.on() and alive
+	if cin:
+		dist *= 0.78
 	var off := Vector3(-sin(cam_yaw) * cos(cam_pitch), sin(cam_pitch), -cos(cam_yaw) * cos(cam_pitch)) * dist
 	var tgt := cam_focus + Vector3(0, 1.8, 0)
+	if cin:
+		cine_t += dt
+		var sp: float = h.sim_speed if "sim_speed" in h else 0.0
+		var bb: float = Cinema.bob(cine_t, sp)
+		var sh: Vector3 = Cinema.shoulder(cam_yaw)
+		tgt += sh + Vector3(0, -0.15 + bb, 0)
+		off += sh * 0.35
 	cam.position = cam.position.lerp(tgt + off, clampf(dt * 10.0, 0.0, 1.0))
 	cam.look_at(tgt)
+	if rain_fx != null:
+		rain_fx.global_position = cam.global_position + Vector3(0, 9, 0)
 	shake = maxf(0.0, shake - dt * 1.3)
 	cam.h_offset = randf_range(-1.0, 1.0) * shake
 	cam.v_offset = randf_range(-1.0, 1.0) * shake
