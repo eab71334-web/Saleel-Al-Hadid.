@@ -212,6 +212,30 @@ def gait(kind, amp, knee, bob, lean, arm, speed_hips):
         return to_pose(p, kind)
     return f
 
+WRIST_TILT = 0.7
+def stroll(kind='melee'):
+    """relaxed, confident walk: long loose stride, hip sway, shoulders rolling, arms swinging, head scanning"""
+    def f(t):
+        a = 2 * PI * t
+        p = dict(DEF, **guard('civ'))
+        s, c = math.sin(a), math.cos(a)
+        for side, ph in (('r', 0.0), ('l', PI)):
+            sa = math.sin(a + ph); ca = math.cos(a + ph)
+            p[side + 'lf'] = sa * 0.5
+            p[side + 'lk'] = (max(0.0, -ca) ** 1.2) * 0.85 + 0.05
+            p[side + 'lp'] = -sa * 0.18 - max(0.0, -ca) * 0.1
+        p['dy'] = -0.02 + 0.03 * (0.5 - 0.5 * math.cos(2 * a)) - 0.012
+        p['dx'] = 0.03 * s
+        p['ry'] = s * 0.12; p['yaw'] = -s * 0.2; p['roll'] = c * 0.04; p['rroll'] = -c * 0.05
+        p['lean'] = 0.03 + 0.008 * math.cos(2 * a)
+        p['hyaw'] = 0.22 * math.sin(a * 0.5) - s * 0.08; p['hpitch'] = -0.02 + 0.03 * math.sin(a * 0.5 + 1)
+        p['raf'] = 0.12 - s * 0.16; p['laf'] = s * 0.45
+        p['rae'] = 0.18 + 0.1 * max(0, s); p['lae'] = 0.25 + 0.4 * max(0, -s)
+        p['rao'] = 0.1; p['lao'] = 0.12; p['wr'] = WRIST_TILT
+        p['shl'] = s * 0.07; p['shr'] = -s * 0.07
+        return to_pose(p, kind)
+    return f
+
 def turn(kind, d):
     # in-place pivot: head leads, torso twists into the turn, feet shuffle; loops
     def f(t):
@@ -373,7 +397,7 @@ def clips(kind):
     else: C.append(('walk', 1.0, gait('melee', 0.6, 0.95, 0.025, 0.05, 0.5, 0.1), True)); C.append(('run', 0.6, gait('melee', 1.0, 1.75, 0.055, 0.26, 0.8, 0.15), True))
     C.append(('turn_left', 0.9, turn(k, 1.0), True)); C.append(('turn_right', 0.9, turn(k, -1.0), True))
     C.append(('react', 0.6, react(k), False))
-    if k == 'melee': C.append(('block', 0.8, block(k), False))
+    if k == 'melee': C.append(('block', 0.8, block(k), False)); C.append(('stroll', 1.3, stroll(k), True))
     if k == 'melee':
         C.append(('attack', 0.9, attack_slash(k), False)); C.append(('attack2', 1.0, attack_overhead(k), False)); C.append(('attack3', 0.95, attack_thrust(k), False)); C.append(('attack4', 0.9, attack_rising(k), False)); C.append(('mount', 1.5, mount_clip(k), False)); C.append(('dismount', 1.1, mount_clip(k, True), False)); C.append(('attack5', 0.85, attack_bash(k), False))
     elif k == 'archer': C.append(('attack', 1.3, attack_bow(), False))

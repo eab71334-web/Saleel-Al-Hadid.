@@ -22,6 +22,7 @@ const HORSE_RIDE_Y := 0.82
 const KEYS := {
 	"idle": ["idle", "stand", "breath"],
 	"walk": ["walk"],
+	"stroll": ["stroll"],
 	"run": ["run", "sprint", "gallop", "trot"],
 	"attack": ["attack", "slash", "strike", "swing", "shoot", "punch", "hit"],
 	"die": ["die", "death", "dead", "fall"],
@@ -33,10 +34,11 @@ const KEYS := {
 	"react": ["react"],
 	"block": ["block"],
 }
-const LOOPED := ["idle", "walk", "run", "ride", "turnl", "turnr"]
+const LOOPED := ["idle", "stroll", "walk", "run", "ride", "turnl", "turnr"]
 const FALLBACK := {
 	"idle": ["idle"],
 	"walk": ["walk", "run", "idle"],
+	"stroll": ["stroll", "walk", "idle"],
 	"run": ["run", "walk", "idle"],
 	"ride": ["ride", "idle"],
 	"attack": ["attack"],
