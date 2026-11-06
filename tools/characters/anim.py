@@ -68,6 +68,7 @@ def _to_pose(p, kind='melee'):
 _B = None           # dict(hp=..., parents=..., order=...) of the character being exported
 FRAMES = {}         # bone -> (up_local, fwd_local) of bow/arrow in wrist bone space, set by gear.bow()
 def set_base(base):
+    _GC.clear()
     global _B
     _B = dict(hp={k: np.array(v, float) for k, v in base['hp'].items()}, parents=base['parents'], order=base['order'])
 
@@ -134,13 +135,42 @@ def draw_pose():
     tr = anchor - 0.07 * aim
     return dict(DRAW_BODY, ikw=1, aimy=0.03, hr=1.0, tl0=tl[0], tl1=tl[1], tl2=tl[2], tr0=tr[0], tr1=tr[1], tr2=tr[2])
 
+_GC = {}
+def _arm_solve(p, side, T, x0):
+    """FK arm params (fwd, out, elbow, twist) putting the wrist at world target T (model space)"""
+    from scipy.optimize import minimize
+    pre = 'r' if side == 'R' else 'l'
+    def cost(x):
+        q = dict(p); q[pre + 'af'], q[pre + 'ao'], q[pre + 'ae'], q[pre + 'at'] = x
+        P, _ = _to_pose(q, 'melee'); R, Pp = _fk(P)
+        e = Pp['wrist.' + side] - np.array(T)
+        return float(e @ e) * 400 + 0.02 * (x[3] - x0[3]) ** 2 + 0.01 * (x[1] - x0[1]) ** 2
+    _P, _ = _to_pose(dict(p), 'melee'); _R, _Pp = _fk(_P); print('probe', side, 'sh', _Pp['upperarm01.'+side].round(2), 'wr0', _Pp['wrist.'+side].round(2), 'T', T)
+    best = None
+    for st in ([0.5, 0.6, 1.2, 0.0], [0.9, 0.9, 1.0, 0.0], [0.3, 1.0, 1.5, 0.0], [0.7, 0.4, 0.8, 0.0]):
+        r = minimize(cost, st, method='L-BFGS-B', bounds=[(0, 1.4), (0, 1.4), (0.35, 2.2), (-1.0, 1.0)])
+        if best is None or r.fun < best.fun: best = r
+    r = best; print('solve', side, r.fun, [round(float(v), 2) for v in r.x])
+    return [float(v) for v in r.x]
+
 def guard(kind):
     if kind == 'archer': return dict(READY)
     if kind == 'civ': return dict(raf=0.08, rae=0.25, laf=0.08, lae=0.25)
     if kind == 'ride': return dict(raf=0.7, rae=0.9, laf=0.7, lae=0.9)
     # historical ready stance: knees bent, weight low, lead (shield-side) foot forward, trailing foot turned out, body half-turned
-    return dict(raf=0.25, rae=0.95, rao=0.35, rat=-0.3, laf=0.3, lae=0.9, lao=0.25, lat=0.3,
-                rlf=-0.2, llf=0.28, rlk=0.3, llk=0.34, rlo=0.12, llo=0.06, dy=-0.07, yaw=0.1, lean=0.04)
+    g = dict(raf=0.55, rae=1.2, rao=0.6, rat=-0.3, laf=0.5, lae=1.25, lao=0.55, lat=0.3,
+             rlf=-0.2, llf=0.28, rlk=0.3, llk=0.34, rlo=0.12, llo=0.06, dy=-0.07, yaw=0.1, lean=0.04)
+    if _B is not None and kind in ('melee', 'sword', 'hero'):
+        key = id(_B)
+        if key not in _GC:
+            p = dict(DEF, **g)
+            sc = float(_B['hp']['upperarm01.L'][1]) / 1.34
+            r = _arm_solve(p, 'R', tuple(np.array((-0.23, 1.12, 0.33)) * sc), [g['raf'], g['rao'], g['rae'], g['rat']])
+            l = _arm_solve(p, 'L', tuple(np.array((0.30, 1.08, 0.27)) * sc), [g['laf'], g['lao'], g['lae'], g['lat']])
+            _GC[key] = (r, l); print('guard arms R', r, 'L', l)
+        r, l = _GC[key]
+        g.update(raf=r[0], rao=r[1], rae=r[2], rat=r[3], laf=l[0], lao=l[1], lae=l[2], lat=l[3])
+    return g
 
 def idle(kind):
     def f(t):
@@ -173,7 +203,7 @@ def gait(kind, amp, knee, bob, lean, arm, speed_hips):
         p['lean'] = lean + 0.01 * math.cos(2 * a)
         p['hyaw'] = s * speed_hips * 0.9; p['hpitch'] = -lean * 0.6
         if kind in ('melee',):
-            p['raf'] = 0.15 + arm * 0.3 * -s * 0.4; p['laf'] = 0.55 + arm * 0.15 * s * 0.4; p['rae'] = 0.7; p['lae'] = 1.1; p['rao'] = 0.45
+            g0 = guard('melee'); p['raf'] = g0['raf'] - arm * 0.12 * s; p['laf'] = g0['laf'] + arm * 0.06 * s
         elif kind == 'archer':
             p['raf'] = 0.4 + arm * 0.5 * -s * 0.6; p['laf'] = 0.6 + arm * 0.4 * s * 0.5
         else:
