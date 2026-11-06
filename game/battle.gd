@@ -305,6 +305,7 @@ func _build_world() -> void:
 
 	# ground (map kinds: plains / island / desert / snow)
 	var gcol := Color(0.22, 0.4, 0.14)
+	var gdark: float = 0.42 if Cinema.on() else 0.0
 	if map_kind == "desert":
 		gcol = Color(0.72, 0.58, 0.34)
 	elif map_kind == "snow":
@@ -315,7 +316,7 @@ func _build_world() -> void:
 		disc.bottom_radius = coast_r + 1.0
 		disc.height = 0.4
 		disc.radial_segments = 72
-		_mesh(self, disc, _mat(gcol, 1.0), Vector3(0, -0.2, 0), Vector3.ZERO, false)
+		_mesh(self, disc, _mat(gcol.darkened(gdark), 1.0), Vector3(0, -0.2, 0), Vector3.ZERO, false)
 		var beach := CylinderMesh.new()
 		beach.top_radius = coast_r + 5.0
 		beach.bottom_radius = coast_r + 9.0
@@ -326,7 +327,7 @@ func _build_world() -> void:
 	else:
 		var pm := PlaneMesh.new()
 		pm.size = Vector2(500, 500)
-		_mesh(self, pm, _mat(gcol, 1.0), Vector3.ZERO, Vector3.ZERO, false)
+		_mesh(self, pm, _mat(gcol.darkened(gdark), 1.0), Vector3.ZERO, Vector3.ZERO, false)
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 42
 	var dirt := _mat(Color(0.38, 0.29, 0.18), 1.0)

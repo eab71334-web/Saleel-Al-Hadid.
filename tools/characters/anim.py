@@ -213,7 +213,7 @@ def gait(kind, amp, knee, bob, lean, arm, speed_hips):
     return f
 
 WRIST_TILT = 0.7
-def stroll(kind='melee'):
+def stroll(kind='melee', heavy=False):
     """relaxed, confident walk: long loose stride, hip sway, shoulders rolling, arms swinging, head scanning"""
     def f(t):
         a = 2 * PI * t
@@ -233,6 +233,14 @@ def stroll(kind='melee'):
         p['rae'] = 0.18 + 0.1 * max(0, s); p['lae'] = 0.25 + 0.4 * max(0, -s)
         p['rao'] = 0.1; p['lao'] = 0.12; p['wr'] = WRIST_TILT
         p['shl'] = s * 0.07; p['shr'] = -s * 0.07
+        if heavy:
+            for sd in ('r', 'l'):
+                p[sd + 'lf'] *= 0.7
+                p[sd + 'lk'] *= 0.8
+            p['dy'] += -0.035 - 0.03 * abs(math.sin(a)) ** 2
+            p['lean'] += 0.05; p['ry'] *= 1.3; p['roll'] *= 1.8; p['rroll'] *= 1.8
+            p['hyaw'] *= 0.3; p['hpitch'] += 0.05
+            p['raf'] *= 0.5; p['laf'] *= 0.5
         return to_pose(p, kind)
     return f
 
@@ -397,7 +405,7 @@ def clips(kind):
     else: C.append(('walk', 1.0, gait('melee', 0.6, 0.95, 0.025, 0.05, 0.5, 0.1), True)); C.append(('run', 0.6, gait('melee', 1.0, 1.75, 0.055, 0.26, 0.8, 0.15), True))
     C.append(('turn_left', 0.9, turn(k, 1.0), True)); C.append(('turn_right', 0.9, turn(k, -1.0), True))
     C.append(('react', 0.6, react(k), False))
-    if k == 'melee': C.append(('block', 0.8, block(k), False)); C.append(('stroll', 1.3, stroll(k), True))
+    if k == 'melee': C.append(('block', 0.8, block(k), False)); C.append(('stroll', 1.3, stroll(k), True)); C.append(('march', 1.6, stroll(k, True), True))
     if k == 'melee':
         C.append(('attack', 0.9, attack_slash(k), False)); C.append(('attack2', 1.0, attack_overhead(k), False)); C.append(('attack3', 0.95, attack_thrust(k), False)); C.append(('attack4', 0.9, attack_rising(k), False)); C.append(('mount', 1.5, mount_clip(k), False)); C.append(('dismount', 1.1, mount_clip(k, True), False)); C.append(('attack5', 0.85, attack_bash(k), False))
     elif k == 'archer': C.append(('attack', 1.3, attack_bow(), False))

@@ -23,6 +23,7 @@ const KEYS := {
 	"idle": ["idle", "stand", "breath"],
 	"walk": ["walk"],
 	"stroll": ["stroll"],
+	"march": ["march"],
 	"run": ["run", "sprint", "gallop", "trot"],
 	"attack": ["attack", "slash", "strike", "swing", "shoot", "punch", "hit"],
 	"die": ["die", "death", "dead", "fall"],
@@ -34,11 +35,12 @@ const KEYS := {
 	"react": ["react"],
 	"block": ["block"],
 }
-const LOOPED := ["idle", "stroll", "walk", "run", "ride", "turnl", "turnr"]
+const LOOPED := ["idle", "march", "stroll", "walk", "run", "ride", "turnl", "turnr"]
 const FALLBACK := {
 	"idle": ["idle"],
 	"walk": ["walk", "run", "idle"],
 	"stroll": ["stroll", "walk", "idle"],
+	"march": ["march", "stroll", "walk", "idle"],
 	"run": ["run", "walk", "idle"],
 	"ride": ["ride", "idle"],
 	"attack": ["attack"],

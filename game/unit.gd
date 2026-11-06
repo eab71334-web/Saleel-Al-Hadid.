@@ -911,12 +911,12 @@ func _model_anim() -> void:
 			elif sim_speed > 5.0:
 				want = "run"
 			elif sim_speed > 0.4:
-				want = "stroll" if (kind == "hero" and sim_speed < 3.2) else "walk"
+				want = ("march" if armor_dm < 0.72 else "stroll") if (kind == "hero" and sim_speed < 3.2) else "walk"
 			elif absf(_yaw_rate) > 1.0 and Models.has_anim(rig, "turnl"):
 				want = "turnl" if _yaw_rate > 0.0 else "turnr"
 			var used: String = Models.play(rig, want)
-			if used == "walk" or used == "stroll":
-				rig.player.speed_scale = clampf(sim_speed / (2.6 if used == "stroll" else 4.2), 0.6, 1.8)
+			if used == "walk" or used == "stroll" or used == "march":
+				rig.player.speed_scale = clampf(sim_speed / (2.6 if used == "stroll" else (2.2 if used == "march" else 4.2)), 0.6, 1.8)
 			elif used == "run":
 				rig.player.speed_scale = clampf(sim_speed / 7.0, 0.6, 1.8)
 			elif rig.player != null:
