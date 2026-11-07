@@ -1629,8 +1629,12 @@ func open_board() -> void:
 	var rows: Array = []
 	for e in board:
 		if e is Dictionary:
-			rows.append({"name": String(e.get("name", "Player")), "level": int(e.get("level", 1)), "kills": int(e.get("kills", 0)), "gold": int(e.get("gold", 0))})
-	rows.append({"name": T("You"), "level": world.level, "kills": int(stats.get("kills", 0)), "gold": int(world.res.gold)})
+			if String(e.get("player_id", "")) == String(world._backend().player_id if world._backend() != null else ""):
+				continue
+			var pl := String(e.get("plat", ""))
+			var tag := ("  [" + preload("res://game/device.gd").label(pl) + "]") if pl != "" else ""
+			rows.append({"name": String(e.get("name", "Player")) + tag, "level": int(e.get("level", 1)), "kills": int(e.get("kills", 0)), "gold": int(e.get("gold", 0))})
+	rows.append({"name": T("You") + "  [" + preload("res://game/device.gd").label() + "]", "level": world.level, "kills": int(stats.get("kills", 0)), "gold": int(world.res.gold)})
 	var lines: Array = []
 	rows.sort_custom(func(a, b): return a.level > b.level or (a.level == b.level and a.kills > b.kills))
 	lines.append(T("Highest castles"))

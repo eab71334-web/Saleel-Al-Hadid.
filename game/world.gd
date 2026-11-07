@@ -9,6 +9,7 @@ const KL := preload("res://game/kinglook.gd")
 const UnitS := preload("res://game/unit.gd")
 const RigS := preload("res://game/rig.gd")
 const ProfS := preload("res://game/profile.gd")
+const DevS := preload("res://game/device.gd")
 const Snd := preload("res://game/uisnd.gd")
 const LocS := preload("res://game/loc.gd")
 const HudS := preload("res://game/worldhud.gd")
@@ -786,7 +787,7 @@ func _net_tick() -> void:
 		return
 	if level > 0:
 		var C := CK.merged(ProfS.castle)
-		bk._http_post("/api/world/castle", {"player_id": bk.player_id, "name": _my_name(), "x": cx, "z": cz, "level": level, "banner": int(C.banner), "emblem": int(C.emblem), "px": king_pos.x, "pz": king_pos.z, "pvp": life.pvp, "kills": int(life.stats.get("kills", 0)), "gold": int(res.gold), "game": "saleelalhadid"}, func(_code, _d): pass)
+		bk._http_post("/api/world/castle", {"player_id": bk.player_id, "name": _my_name(), "x": cx, "z": cz, "level": level, "banner": int(C.banner), "emblem": int(C.emblem), "px": king_pos.x, "pz": king_pos.z, "pvp": life.pvp, "kills": int(life.stats.get("kills", 0)), "gold": int(res.gold), "plat": DevS.platform(), "game": "saleelalhadid"}, func(_code, _d): pass)
 		bk._http_get("/api/world/inbox?player_id=" + String(bk.player_id).uri_encode(), func(code, d):
 			if code == 200 and d is Dictionary and d.has("msgs"):
 				life.on_msgs(d["msgs"]))
@@ -820,7 +821,7 @@ func _net_tick() -> void:
 					c.level = int(e.get("level", 1))
 					c.name = String(e.get("name", "Player"))
 			if not found:
-				var nc := {"name": String(e.get("name", "Player")), "x": float(e.get("x", 0)), "z": float(e.get("z", 0)), "level": clampi(int(e.get("level", 1)), 1, 50), "banner": int(e.get("banner", 0)), "emblem": int(e.get("emblem", 0)), "owner": "online", "pid": String(e.player_id)}
+				var nc := {"name": String(e.get("name", "Player")), "x": float(e.get("x", 0)), "z": float(e.get("z", 0)), "level": clampi(int(e.get("level", 1)), 1, 50), "banner": int(e.get("banner", 0)), "emblem": int(e.get("emblem", 0)), "owner": "online", "pid": String(e.player_id), "plat": String(e.get("plat", ""))}
 				castles.append(nc)
 				WG.add_site(nc.x, nc.z)
 		life.prune_online(seen))

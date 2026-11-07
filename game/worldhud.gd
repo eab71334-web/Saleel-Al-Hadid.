@@ -6,6 +6,7 @@ const WG := preload("res://game/worldgen.gd")
 const CK := preload("res://game/castlekit.gd")
 
 const Prog := preload("res://game/worldprog.gd")
+const Engage := preload("res://game/engage.gd")
 
 var world
 var play_root: Control
@@ -19,6 +20,7 @@ var lbl_pos: Label
 var lbl_near: Label
 var lbl_net: Label
 var btn_horse: Button
+var btn_daily: Button
 var btn_home: Button
 var btn_attack: Button
 var btn_ctx: Button
@@ -148,6 +150,7 @@ func _build_play() -> void:
 		"home": func(): world.fast_home(),
 		"attack": func(): world.life.king_attack(),
 		"realm": func(): world.life.open_realm(),
+		"daily": func(): Engage.open(world),
 		"ctx": func():
 			if not world.life.ctx.is_empty():
 				(world.life.ctx.fn as Callable).call(),
@@ -155,6 +158,8 @@ func _build_play() -> void:
 	side.add_child(_mbtn("map", "MAP", "map", Vector2(182, 54), 22))
 	side.add_child(_mbtn("castle", "CASTLE", "house", Vector2(182, 54), 22, true))
 	side.add_child(_mbtn("realm", "REALM", "army", Vector2(182, 54), 22))
+	btn_daily = _mbtn("daily", "DAILY", "level", Vector2(182, 54), 22)
+	side.add_child(btn_daily)
 	side.add_child(_mbtn("exit", "Exit", "gear", Vector2(182, 46), 20))
 	# action buttons (bottom right)
 	var ab := VBoxContainer.new()
@@ -796,6 +801,13 @@ func tick(dt: float) -> void:
 	lbl_net.text = (LocS.t("Online world") + " - %d " % world.online_count + LocS.t("other players")) if world.online_state == "online" else LocS.t("Offline world - lords only")
 	lbl_net.add_theme_color_override("font_color", Color(0.6, 1, 0.7) if world.online_state == "online" else Color(0.85, 0.8, 0.6))
 	refresh_buttons()
+	Engage.tick(world, 0.15)
+	var rc: int = Engage.ready_count(world)
+	_btn_set(btn_daily, (LocS.t("DAILY") + " !") if rc > 0 else LocS.t("DAILY"), "")
+	btn_daily.modulate = Color(1.0, 0.92, 0.45) if rc > 0 else Color.WHITE
+	if rc > 0 and not Engage.shown_session and world.online_state == "online":
+		Engage.shown_session = true
+		Engage.open(world)
 	var ct := ""
 	for cl in world.life.chat_lines:
 		if world.life.t - float(cl[1]) < 14.0:

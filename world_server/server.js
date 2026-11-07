@@ -2,7 +2,7 @@
 // Players POST their castle; everybody GETs the list and sees the other players' castles in the world.
 //   GET  /api/world/castles?game=saleelalhadid   -> { "castles": [ {player_id,name,x,z,level,banner,emblem,px,pz,updated} ] }
 //   POST /api/world/castle  {player_id,name,x,z,level,banner,emblem,px,pz}  -> { "ok": true }   (px,pz = where the king is now)
-//   (castle POST also takes pvp: 0/1 - players with pvp on can fight each other; hits travel through /send as type "hit")
+//   (castle POST also takes plat: android/ios/pc, shown next to the name on the leaderboard; pvp: 0/1 - players with pvp on can fight each other; hits travel through /send as type "hit")
 //   POST /api/world/send    {from,to,type,data}   -> { "ok": true }   mailbox: tax offers, alliance proposals, replies, muster calls
 //   POST /api/world/chat    {player_id,code,x,z}   public quick-chat (phrase codes only)
 //   GET  /api/world/chat?after=ID   -> { chat:[{id,from,name,code,x,z,ts}], last }
@@ -64,7 +64,7 @@ http.createServer((req, res) => {
         name: String(j.name || "Player").replace(/[<>]/g, "").slice(0, 24),
         x: num(j.x, -4000, 4000, 0), z: num(j.z, -4000, 4000, 0),
         level, banner: Math.round(num(j.banner, 0, 6, 0)), emblem: Math.round(num(j.emblem, 0, 4, 0)),
-        pvp: j.pvp ? 1 : 0, kills: Math.round(num(j.kills, 0, 1e6, 0)), gold: Math.round(num(j.gold, 0, 1e9, 0)),
+        pvp: j.pvp ? 1 : 0, plat: ["android", "ios", "pc"].includes(j.plat) ? j.plat : "", kills: Math.round(num(j.kills, 0, 1e6, 0)), gold: Math.round(num(j.gold, 0, 1e9, 0)),
         px: num(j.px, -4000, 4000, num(j.x, -4000, 4000, 0)), pz: num(j.pz, -4000, 4000, num(j.z, -4000, 4000, 0)),
         updated: Date.now(),
       };

@@ -41,6 +41,7 @@ var _fps_lbl: Label
 func _ready() -> void:
 	name = "Main"
 	SettingsS.load_all()
+	preload("res://game/device.gd").auto_setup()
 	ProfS.load_all()
 	LocS.install(get_tree())
 	# the game reached its menu: the boot safety flag can go
