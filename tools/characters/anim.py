@@ -209,6 +209,12 @@ def gait(kind, amp, knee, bob, lean, arm, speed_hips):
         else:
             p['raf'] = arm * 0.9 * -s; p['laf'] = arm * 0.9 * s; p['rae'] = 0.3 + 0.5 * max(0, s) * arm; p['lae'] = 0.3 + 0.5 * max(0, -s) * arm
         p['shl'] = s * 0.05; p['shr'] = -s * 0.05
+        # keep the planted foot on the ground (legs swing on arcs, so the pelvis must rise/fall); flight phase adds a small hop
+        p['dy'] = 0.0
+        P0, _ = _to_pose(p, kind); _R, _Pp = _fk(P0)
+        hp = _B['hp']
+        m = min(_Pp['foot.L'][1] - hp['foot.L'][1], _Pp['foot.R'][1] - hp['foot.R'][1])
+        p['dy'] = -m + (bob * 1.6 * math.sin(a) ** 2 if bob > 0.04 else 0.0)
         return to_pose(p, kind)
     return f
 

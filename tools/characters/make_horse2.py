@@ -96,7 +96,7 @@ def build(coat, name, outdir):
             return [('chest', t), ('root', 1 - t)] if t < 1 else [('chest', 1.0)]
         if z < -0.95: return [('root', 0.8), ('tail', 0.2)]
         return [('root', 1.0)]
-    M.add('body', Vb, Fb, colfn=coatcol, wfn=body_w)
+    pass
 
     # muscle masses: hindquarter, gaskin, shoulder, forearm, neck-base, gluteal
     def blob(c, r, bone=None, wfn=None, nseg=14, sq=1.0):
@@ -105,7 +105,7 @@ def build(coat, name, outdir):
         return Vv, Ff
     for sg in (-1, 1):
         for c_, r_, bn in (((sg * 0.23, 1.03, -0.72), (0.14, 0.27, 0.2), 'root'),                            ((sg * 0.23, 1.18, 0.6), (0.1, 0.22, 0.17), 'chest'),                            ((sg * 0.18, 1.27, -0.88), (0.1, 0.1, 0.15), 'root')):
-            Vv, Ff = blob(c_, r_); M.add('body', Vv, Ff, colfn=coatcol, bone=bn)
+            pass
 
     # ------------------------------------------------------------ neck (arched crest)
     nk = [((0, 1.36, 0.84), 0.19, 0.31), ((0, 1.46, 0.95), 0.165, 0.275), ((0, 1.58, 1.05), 0.14, 0.235), ((0, 1.7, 1.14), 0.118, 0.2), ((0, 1.79, 1.22), 0.1, 0.17), ((0, 1.84, 1.28), 0.088, 0.14)]
@@ -116,7 +116,7 @@ def build(coat, name, outdir):
         if t < 0.35: return [('chest', 1 - t / 0.35 * 0.5), ('neck', t / 0.35 * 0.5)]
         if t > 0.85: return [('neck', 1 - (t - 0.85) / 0.15 * 0.4), ('head', (t - 0.85) / 0.15 * 0.4)]
         return [('neck', 1.0)]
-    M.add('body', Vn, Fn, colfn=coatcol, wfn=neck_w)
+    pass
 
     # ------------------------------------------------------------ head (poll -> muzzle)
     hd = [((0, 1.84, 1.27), 0.07, 0.09), ((0, 1.8, 1.31), 0.095, 0.125), ((0, 1.72, 1.375), 0.105, 0.15), ((0, 1.64, 1.44), 0.1, 0.15),
@@ -130,7 +130,7 @@ def build(coat, name, outdir):
         if p[2] > 1.68: c = c * 0.65
         if blaze and abs(p[0]) < 0.028 and p[2] > 1.33 and p[1] > 1.5: c = np.array((0.95, 0.93, 0.88))
         return c
-    M.add('body', Vh, Fh, colfn=headcol, bone='head')
+    pass
     # jaw / cheek mass, nostrils, eyes, brow, ears, lips
     for sg in (-1, 1):
         Vv, Ff = blob((sg * 0.07, 1.6, 1.43), (0.06, 0.1, 0.09)); M.add('body', Vv, Ff, colfn=lambda p: coatcol((p[0], 1.6, p[2])), bone='head')
@@ -202,6 +202,7 @@ def build(coat, name, outdir):
                 t = (y - (yfet - band)) / (2 * band); return [(s + '_l', t), (s + '_h', 1 - t)]
             return [(s + '_h', 1.0)]
         return f
+    LEGP = {}
     def leg(s, front):
         x = H[s + '_u'][0]
         zu = 0.62 if front else -0.7
@@ -215,7 +216,7 @@ def build(coat, name, outdir):
             ykn, yfet = 0.64, 0.2
         rings = [ring_xz((x, y, z), rx_, rz_) for y, z, rx_, rz_ in prof]
         Vv, Ff = loft(rings, 14, False, False)
-        M.add('body', Vv, Ff, colfn=coatcol, wfn=legw(s, ykn, yfet))
+        LEGP[s] = (x, prof)
         zh = prof[-1][1]; xh = x
         # hoof (dark horn, flared) + steel shoe
         Vv, Ff = lathe([(0.001, 0.0), (0.078, 0.0), (0.082, 0.012), (0.07, 0.05), (0.058, 0.1), (0.001, 0.1)], 14, (xh, 0.0, zh + 0.03), 1)
@@ -226,6 +227,103 @@ def build(coat, name, outdir):
         Vv, Ff = lathe([(0.04, 0.0), (0.062, 0.03), (0.05, 0.075)], 10, (xh, 0.145, zh + 0.012), 1)
     for s in ('fl', 'fr'): leg(s, True)
     for s in ('hl', 'hr'): leg(s, False)
+
+    szs0 = np.array([q[0] for q in sec]); scy0 = np.array([q[1] for q in sec]); srx0 = np.array([q[2] for q in sec]); sry0 = np.array([q[3] for q in sec])
+    # ------------------------------------------------------------ ONE smooth anatomical body (SDF smooth-union of muscle masses -> marching cubes)
+    from skimage.measure import marching_cubes
+    ELL = []     # (centre, frame(3x3 rows = local axes), radii)
+    I3 = np.eye(3)
+    GRP = [0]
+    def ell(c, r, fr=I3): ELL.append((np.array(c, float), np.array(fr, float), np.array(r, float), GRP[0]))
+    def grp(): GRP[0] += 1
+    def frame_perp(axis):
+        a = np.array(axis, float); a /= np.linalg.norm(a); ex = np.array([1.0, 0, 0]); ey = np.cross(a, ex); ey /= np.linalg.norm(ey)
+        return np.array([ex, a, ey])
+    # torso
+    grp()
+    zz = np.linspace(sec[0][0], sec[-1][0], 46)
+    for z in zz:
+        ell((0, np.interp(z, szs0, scy0), z), (max(np.interp(z, szs0, srx0), 0.03), max(np.interp(z, szs0, sry0), 0.03), 0.06))
+    # muscle masses merged into the body (hindquarter, thigh, gluteal, shoulder, forearm root)
+    for sg in (-1, 1):
+        for cc, rr in (((sg * 0.2, 1.1, -0.72), (0.14, 0.3, 0.2)), ((sg * 0.19, 0.95, -0.7), (0.1, 0.2, 0.13)), ((sg * 0.17, 1.3, -0.86), (0.12, 0.13, 0.15)), ((sg * 0.2, 1.15, 0.62), (0.1, 0.25, 0.17)), ((sg * 0.17, 0.95, 0.63), (0.075, 0.17, 0.1)), ((sg * 0.16, 1.4, 0.55), (0.11, 0.12, 0.2))):
+            grp(); ell(cc, rr)
+    # neck (frames perpendicular to the neck axis)
+    grp()
+    for i in range(len(nk) - 1):
+        for t in np.linspace(0, 1, 8, endpoint=(i == len(nk) - 2)):
+            c = np.array(nk[i][0]) * (1 - t) + np.array(nk[i + 1][0]) * t; rxv = nk[i][1] * (1 - t) + nk[i + 1][1] * t; ryv = nk[i][2] * (1 - t) + nk[i + 1][2] * t
+            ell(c, (rxv * 1.02, 0.06, ryv * 0.98), frame_perp((0, 0.8, 0.5)))
+    # head
+    grp()
+    for i in range(len(hd) - 1):
+        for t in np.linspace(0, 1, 6, endpoint=(i == len(hd) - 2)):
+            c = np.array(hd[i][0]) * (1 - t) + np.array(hd[i + 1][0]) * t; rxv = hd[i][1] * (1 - t) + hd[i + 1][1] * t; ryv = hd[i][2] * (1 - t) + hd[i + 1][2] * t
+            ell(c, (rxv, 0.04, ryv), frame_perp((0, -0.8, 0.6)))
+    # legs
+    for sname, (lx, prof) in LEGP.items():
+        grp()
+        for i in range(len(prof) - 1):
+            y0, z0, rx0, rz0 = prof[i]; y1, z1, rx1, rz1 = prof[i + 1]
+            for t in np.linspace(0, 1, max(2, int(abs(y0 - y1) / 0.035)), endpoint=(i == len(prof) - 2)):
+                ell((lx, y0 + (y1 - y0) * t, z0 + (z1 - z0) * t), ((rx0 + (rx1 - rx0) * t) * 1.08, 0.045, (rz0 + (rz1 - rz0) * t) * 1.08))
+        # joints: knee/hock + fetlock knobs for definition
+        yk = 0.6 if sname[0] == 'f' else 0.64
+    step = 0.027; kk = 0.07
+    xs = np.arange(-0.52, 0.52 + step, step); ys = np.arange(-0.02, 2.02, step); zs_ = np.arange(-1.25, 1.85, step)
+    ng = GRP[0] + 1
+    Dg = np.full((ng, len(xs), len(ys), len(zs_)), 9.0, np.float32)
+    for c, fr, r, g in ELL:
+        reach = r.max() + 3 * kk
+        ix = np.where(abs(xs - c[0]) < reach)[0]; iy = np.where(abs(ys - c[1]) < reach)[0]; iz = np.where(abs(zs_ - c[2]) < reach)[0]
+        if len(ix) == 0 or len(iy) == 0 or len(iz) == 0: continue
+        gx, gy, gz = np.meshgrid(xs[ix] - c[0], ys[iy] - c[1], zs_[iz] - c[2], indexing='ij')
+        q = np.stack([gx, gy, gz], -1) @ fr.T / r
+        d = ((np.sqrt((q ** 2).sum(-1)) - 1.0) * r.min()).astype(np.float32)
+        sub = Dg[g][np.ix_(ix, iy, iz)]; Dg[g][np.ix_(ix, iy, iz)] = np.minimum(sub, d)
+    # polynomial smooth-min across groups (bounded inflation)
+    S = Dg[0].copy()
+    for g in range(1, ng):
+        a_ = S; b_ = Dg[g]; h = np.maximum(kk - np.abs(a_ - b_), 0) / kk
+        S = np.minimum(a_, b_) - h * h * kk * 0.25
+    Fld = S
+    del Dg
+    vv, ff, _, _ = marching_cubes(Fld, 0.0, spacing=(step, step, step))
+    vv = vv + np.array([xs[0], ys[0], zs_[0]])
+    vv[:, 1] = np.maximum(vv[:, 1], 0.0)
+    ff = ff[:, [0, 2, 1]]
+    def sbody_w(p):
+        x, y, z = p
+        fx = float(np.clip((abs(x) - 0.06) / 0.08, 0, 1))
+        front = z > 0.0
+        if y < 1.18 and fx > 0:
+            sd = ('f' if front else 'h') + ('l' if x > 0 else 'r')
+            ykn, yfet = (0.6, 0.2) if front else (0.64, 0.2); band = 0.07
+            u = float(np.clip((1.18 - y) / 0.22, 0, 1)) * fx
+            if y > ykn + band: lw = [(sd + '_u', 1.0)]
+            elif y > ykn - band: t = (y - (ykn - band)) / (2 * band); lw = [(sd + '_u', t), (sd + '_l', 1 - t)]
+            elif y > yfet + band: lw = [(sd + '_l', 1.0)]
+            elif y > yfet - band: t = (y - (yfet - band)) / (2 * band); lw = [(sd + '_l', t), (sd + '_h', 1 - t)]
+            else: lw = [(sd + '_h', 1.0)]
+            base = [('chest', 1.0)] if front else [('root', 1.0)]
+            if u >= 0.999: return lw
+            return [(b, w * u) for b, w in lw] + [(b, w * (1 - u)) for b, w in base]
+        if y > 1.3 and z > 0.78:
+            h = float(np.clip((z - 1.2) / 0.14, 0, 1)) if y > 1.35 else 0.0
+            if z < 1.0:
+                t = float(np.clip((y - 1.36) / 0.45, 0, 1)); return [('chest', 1 - t * 0.5), ('neck', t * 0.5)]
+            return [('neck', 1 - h), ('head', h)] if h < 1 else [('head', 1.0)]
+        if z > 0.1:
+            t = min((z - 0.1) / 0.4, 1.0)
+            if z > 0.78: return [('chest', 0.75), ('neck', 0.25)]
+            return [('chest', t), ('root', 1 - t)] if t < 1 else [('chest', 1.0)]
+        if z < -0.95: return [('root', 0.8), ('tail', 0.2)]
+        return [('root', 1.0)]
+    def sbody_col(p):
+        c = coatcol(p)
+        if p[2] > 1.3 and p[1] > 1.42: c = headcol(p)
+        return c
+    M.add('body', vv, ff, colfn=sbody_col, wfn=sbody_w)
 
     szs = np.array([q[0] for q in sec]); scy = np.array([q[1] for q in sec]); srx = np.array([q[2] for q in sec]); sry = np.array([q[3] for q in sec])
     def _flipfix(V, F, ctr):
@@ -240,7 +338,7 @@ def build(coat, name, outdir):
         for z in zs:
             rx_ = np.interp(z, szs, srx); ry_ = np.interp(z, szs, sry); cy = np.interp(z, szs, scy)
             edge = min(z + 0.66, 0.7 - z)
-            yh = cy - ry_ * 0.55 - 0.2 + 0.1 * max(0.0, 0.1 - edge) * 3 + 0.025 * math.sin(z * 17)
+            yh = cy - ry_ * 0.55 - 0.03 + 0.1 * max(0.0, 0.1 - edge) * 3 + 0.025 * math.sin(z * 17)
             pts = [(-(rx_ * 1.1 + 0.07), yh), (-(rx_ * 1.07 + 0.03), cy - ry_ * 0.45)]
             for ph in np.linspace(-1.55, 1.55, 19): pts.append((rx_ * 1.045 * math.sin(ph), cy + ry_ * 1.045 * math.cos(ph) * 1.0))
             pts += [((rx_ * 1.07 + 0.03), cy - ry_ * 0.45), ((rx_ * 1.1 + 0.07), yh)]
@@ -266,7 +364,7 @@ def build(coat, name, outdir):
         cyv = np.interp(V[:, 2], szs, scy)
         Vin = V.copy(); Vin[:, 0] *= 0.985; Vin[:, 1] = cyv + (V[:, 1] - cyv) * 0.985 - 0.004
         def col(p):
-            z = p[2]; edge = min(z + 0.66, 0.7 - z); yh = np.interp(z, szs, scy) - np.interp(z, szs, sry) * 0.55 - 0.2
+            z = p[2]; edge = min(z + 0.66, 0.7 - z); yh = np.interp(z, szs, scy) - np.interp(z, szs, sry) * 0.55 - 0.03
             gold = np.array((0.95, 0.74, 0.22)); red = np.array((0.7, 0.07, 0.09)); dk = np.array((0.5, 0.04, 0.06))
             if p[1] < yh + 0.05 or edge < 0.05: return gold
             if p[1] < yh + 0.09 or edge < 0.09: return dk
@@ -347,10 +445,6 @@ def build(coat, name, outdir):
     Vv, Ff = lathe([(0.03, 0.0), (0.02, 0.05), (0.001, 0.1)], 8, (0, 0, 0), 1); M.add('gold', place(Vv, euler(0.55, 0, 0), (0, 1.8, 1.4)), Ff, bone='head')   # plume spike
     for sg in (-1, 1):
         Vv, Ff = blob((sg * 0.1, 1.735, 1.375), (0.044, 0.044, 0.02), nseg=12); M.add('steel', Vv, Ff, bone='head') if False else None
-    pr = [ring_xy((0, 1.3, 0.9 + 0.045 * k), 0.255 - 0.025 * k, 0.33 - 0.035 * k) for k in range(4)]
-    arc_plate(pr, 0, 3, 120, 420, 0.035, 'steel', (1, 1, 1), 'chest', nz=4, nth=14, wfn=lambda p: [('chest', 1.0)])
-    arc_plate(pr, 0, 0.35, 125, 415, 0.05, 'gold', (1, 1, 1), 'chest', nz=1, nth=14, wfn=lambda p: [('chest', 1.0)])
-    Vv, Ff = blob((0, 1.28, 1.0), (0.05, 0.05, 0.04), nseg=12); M.add('gold', Vv, Ff, bone='chest')
 
     # ------------------------------------------------------------ animation
     def rotx(v): return (v, 0, 0)
@@ -368,23 +462,30 @@ def build(coat, name, outdir):
         Pz['hr_u'] = (0.04 * math.sin(a * 0.5), 0, 0)
         return Pz, [0, 0.003 * math.sin(a), 0]
 
+    def legcycle(ph, front, duty, fwd0, back0, flex):
+        """foot on the ground while the leg sweeps back (stance), then folds and swings forward (swing). returns (u, l, h) rotations"""
+        ph = ph % 1.0
+        if ph < duty:
+            k = ph / duty; uf = fwd0 + (back0 - fwd0) * k
+            fl = 0.06 + 0.1 * max(0.0, k - 0.75) * 4.0 * (1 if front else 0.6)       # heel lifts at push-off
+            hh = 0.0
+        else:
+            psi = (ph - duty) / (1.0 - duty); sm = psi * psi * (3 - 2 * psi)
+            uf = back0 + (fwd0 - back0) * sm
+            fl = flex * math.sin(math.pi * min(1.0, psi * 1.12)) ** 0.9 + 0.06
+            hh = 0.3 * math.sin(math.pi * psi)
+        if front: return (-uf, fl, -hh * 0.6)
+        return (-uf, -fl * 1.05, hh)
+
     def gait(t, kind):
         Pz = {}
-        if kind == 'walk': ph = dict(hl=0.0, fl=0.25, hr=0.5, fr=0.75); amp = 0.42; bob = 0.012
-        else: ph = dict(hr=0.0, hl=0.1, fr=0.42, fl=0.52); amp = 0.95; bob = 0.055
+        if kind == 'walk': ph = dict(hl=0.0, fl=0.25, hr=0.5, fr=0.75); duty, f0, b0, fx = 0.62, 0.32, -0.3, 1.1; bob = 0.012
+        else: ph = dict(hr=0.0, hl=0.1, fr=0.42, fl=0.52); duty, f0, b0, fx = 0.34, 0.5, -0.5, 1.7; bob = 0.055
         a = 2 * math.pi * t
         for s in LEG:
-            ang = 2 * math.pi * (t + ph[s]); front = s[0] == 'f'
-            sw = math.sin(ang); lift = max(0.0, math.cos(ang))
-            if kind == 'run':
-                # gallop: leg reaches far forward, folds high in the air, then drives back
-                reach = amp * (0.8 if front else 0.7)
-                Pz[s + '_u'] = ((sw * reach - 0.1) * (-1 if front else -1) * (1 if front else 1) * 1.0, 0, 0)
-                if front: Pz[s + '_u'] = (-sw * reach, 0, 0); Pz[s + '_l'] = ((lift ** 0.8) * 1.5 + 0.05, 0, 0); Pz[s + '_h'] = (-lift * 0.5, 0, 0)
-                else: Pz[s + '_u'] = (sw * reach, 0, 0); Pz[s + '_l'] = (-(lift ** 0.8) * 1.25 - 0.05, 0, 0); Pz[s + '_h'] = (lift * 0.45, 0, 0)
-            else:
-                if front: Pz[s + '_u'] = (-sw * amp, 0, 0); Pz[s + '_l'] = (lift * 0.95 + 0.04, 0, 0); Pz[s + '_h'] = (-lift * 0.25, 0, 0)
-                else: Pz[s + '_u'] = (sw * amp * 0.85, 0, 0); Pz[s + '_l'] = (-lift * 0.85 - 0.04, 0, 0); Pz[s + '_h'] = (lift * 0.3, 0, 0)
+            front = s[0] == 'f'
+            u_, l_, h_ = legcycle(t + ph[s], front, duty, f0 if front else f0 * 0.9, b0 if front else b0 * 1.1, fx if front else fx * 0.9)
+            Pz[s + '_u'] = (u_, 0, 0); Pz[s + '_l'] = (l_, 0, 0); Pz[s + '_h'] = (h_, 0, 0)
         if kind == 'run':
             Pz['root'] = (-math.sin(a + 0.4) * 0.14, 0, math.sin(a) * 0.02)
             Pz['chest'] = (math.sin(a + 0.4) * 0.17, math.sin(a) * 0.03, 0)               # spine flexes opposite to the pelvis
