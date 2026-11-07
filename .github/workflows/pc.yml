@@ -1,0 +1,85 @@
+name: Export PC (Windows, Linux, Mac)
+
+# Builds the game for computers. Download the zip from the run's "Artifacts" or from the "Releases" page.
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths-ignore:
+      - "**.md"
+
+permissions:
+  contents: write
+
+env:
+  GODOT_VERSION: "4.7.2"
+
+jobs:
+  pc:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Stamp build number
+        run: |
+          N=$(git rev-list --count HEAD)
+          printf 'extends RefCounted\nconst BUILD := %s\n' "$N" > game/build.gd
+
+      - name: Install Godot and export templates
+        run: |
+          set -e
+          cd "$RUNNER_TEMP"
+          BASE="https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable"
+          curl -fsSL -o godot.zip "$BASE/Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip"
+          curl -fsSL -o tpl.tpz "$BASE/Godot_v${GODOT_VERSION}-stable_export_templates.tpz"
+          unzip -q godot.zip
+          sudo mv "Godot_v${GODOT_VERSION}-stable_linux.x86_64" /usr/local/bin/godot
+          unzip -q tpl.tpz
+          mkdir -p "$HOME/.local/share/godot/export_templates/${GODOT_VERSION}.stable"
+          mv templates/* "$HOME/.local/share/godot/export_templates/${GODOT_VERSION}.stable/"
+          godot --version
+
+      - name: Add desktop presets
+        run: bash tools/add_pc_presets.sh export_presets.cfg
+
+      - name: Import project
+        run: |
+          godot --headless --path . --import || true
+          godot --headless --path . --import || true
+
+      - name: Export Windows
+        run: |
+          mkdir -p build/pc
+          godot --headless --path . --export-release "Windows PC" build/pc/SaleelAlHadid.exe
+          ls -la build/pc
+          cd build/pc && zip -q ../SaleelAlHadid-Windows.zip SaleelAlHadid.exe
+
+      - name: Export Linux
+        run: |
+          mkdir -p build/linux
+          godot --headless --path . --export-release "Linux PC" build/linux/SaleelAlHadid.x86_64
+          chmod +x build/linux/SaleelAlHadid.x86_64
+          cd build/linux && zip -q ../SaleelAlHadid-Linux.zip SaleelAlHadid.x86_64
+
+      - name: Export Mac (unsigned)
+        continue-on-error: true
+        run: |
+          mkdir -p build/mac
+          godot --headless --path . --export-release "Mac" build/mac/SaleelAlHadid.zip
+          cp build/mac/SaleelAlHadid.zip build/SaleelAlHadid-Mac.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SaleelAlHadid-PC
+          path: build/SaleelAlHadid-*.zip
+
+      - name: Publish release (download on your computer)
+        if: github.event_name != 'pull_request'
+        continue-on-error: true
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: pc-${{ github.run_number }}
+          name: PC build ${{ github.run_number }}
+          files: build/SaleelAlHadid-*.zip
