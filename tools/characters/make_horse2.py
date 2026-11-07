@@ -475,7 +475,7 @@ def build(coat, name, outdir):
             fl = flex * math.sin(math.pi * min(1.0, psi * 1.12)) ** 0.9 + 0.06
             hh = 0.3 * math.sin(math.pi * psi)
         if front: return (-uf, fl, -hh * 0.6)
-        return (-uf, -fl * 1.05, hh)
+        return (-uf, -fl * 1.05, fl * 0.55)
 
     def gait(t, kind):
         Pz = {}
@@ -484,7 +484,7 @@ def build(coat, name, outdir):
         a = 2 * math.pi * t
         for s in LEG:
             front = s[0] == 'f'
-            u_, l_, h_ = legcycle(t + ph[s], front, duty, f0 if front else f0 * 0.9, b0 if front else b0 * 1.1, fx if front else fx * 0.9)
+            u_, l_, h_ = legcycle(t + ph[s], front, duty, f0 if front else f0 * 0.5, b0 if front else b0 * 1.1, fx if front else fx * 0.62)
             Pz[s + '_u'] = (u_, 0, 0); Pz[s + '_l'] = (l_, 0, 0); Pz[s + '_h'] = (h_, 0, 0)
         if kind == 'run':
             Pz['root'] = (-math.sin(a + 0.4) * 0.14, 0, math.sin(a) * 0.02)

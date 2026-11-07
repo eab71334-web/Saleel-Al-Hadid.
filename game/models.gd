@@ -16,6 +16,8 @@ const EXTS := [".glb", ".gltf", ".fbx", ".tscn"]
 
 # Tuning: final height of each model in metres.
 const HEIGHTS := {"sword": 1.8, "archer": 1.8, "cav": 1.8, "hero": 2.1, "king": 2.1, "horse": 2.0, "villager": 1.7}
+# Real body heights (feet to top of head, weapons/bows/crowns ignored) used for characters that have a skeleton.
+const BODY_H := {"sword": 1.66, "archer": 1.62, "cav": 1.66, "hero": 1.78, "king": 1.78, "villager": 1.6}
 # How high the rider sits when a custom horse model is used.
 const HORSE_RIDE_Y := 0.82
 
@@ -103,7 +105,7 @@ static func build(kind: String, variant := 0):
 		return null
 	var root := Node3D.new()
 	root.add_child(inst)
-	_fit(inst, float(HEIGHTS.get(kind, 1.8)))
+	_fit(inst, float(HEIGHTS.get(kind, 1.8)), float(BODY_H.get(kind, 0.0)))
 	var rig := {"root": root, "player": null, "names": {}, "cur": ""}
 
 	var ap: AnimationPlayer = null
@@ -137,11 +139,28 @@ static func build(kind: String, variant := 0):
 
 
 # Scale so the model has the wanted height, feet on y=0, centred on x/z.
-static func _fit(inst: Node3D, height: float) -> void:
+static func _fit(inst: Node3D, height: float, body_h: float = 0.0) -> void:
 	var bb := _aabb(inst, inst.transform)
 	if bb.size.y < 0.0001:
 		return
 	var s := height / bb.size.y
+	# A bow, long blade or crown inflates the bounding box and shrinks the body (archers came out tiny next to the king).
+	# Scale by the real head-top height instead when the model has a skeleton with a head bone.
+	if body_h > 0.0:
+		var sk := inst.find_children("*", "Skeleton3D", true, false)
+		if not sk.is_empty():
+			var skel: Skeleton3D = sk[0]
+			var hi := skel.find_bone("head")
+			if hi >= 0:
+				var xf := Transform3D()
+				var nd: Node = skel
+				while nd != null and nd != inst:
+					xf = (nd as Node3D).transform * xf
+					nd = nd.get_parent()
+				var top: float = (inst.transform * xf * skel.get_bone_global_rest(hi).origin).y + 0.15 * inst.transform.basis.get_scale().y
+				var base: float = bb.position.y
+				if top - base > 0.5:
+					s = body_h / (top - base)
 	var c := bb.position + bb.size * 0.5
 	var fix := Transform3D(Basis.from_scale(Vector3.ONE * s), Vector3(-c.x * s, -bb.position.y * s, -c.z * s))
 	inst.transform = fix * inst.transform
