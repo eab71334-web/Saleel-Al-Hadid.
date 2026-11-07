@@ -12,7 +12,7 @@ permissions:
 
 env:
   # Use the SAME Godot version as your iOS workflow (look at export.yml).
-  GODOT_VERSION: "4.4.1"
+  GODOT_VERSION: "4.7.2"
 
 jobs:
   android:

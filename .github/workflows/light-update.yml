@@ -15,7 +15,7 @@ permissions:
 
 env:
   # Must be the SAME Godot version the full app was built with.
-  GODOT_VERSION: "4.4.1"
+  GODOT_VERSION: "4.7.2"
 
 jobs:
   update:

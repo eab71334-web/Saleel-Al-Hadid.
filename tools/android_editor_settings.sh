@@ -6,7 +6,7 @@ SDK="$1"; JDK="$2"; KS="$HOME/debug.keystore"
   -keystore "$KS" -storepass android -dname "CN=Android Debug,O=Android,C=US" \
   -validity 9999 -deststoretype pkcs12
 mkdir -p "$HOME/.config/godot"
-for v in 4 4.3 4.4 4.5 4.6; do
+for v in 4 4.3 4.4 4.5 4.6 4.7; do
   cat > "$HOME/.config/godot/editor_settings-$v.tres" <<SETTINGS
 [gd_resource type="EditorSettings" format=3]
 

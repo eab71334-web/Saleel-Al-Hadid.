@@ -103,6 +103,7 @@ static func build(kind: String, variant := 0):
 	if not (inst is Node3D):
 		inst.free()
 		return null
+	_vcol(inst)
 	var root := Node3D.new()
 	root.add_child(inst)
 	_fit(inst, float(HEIGHTS.get(kind, 1.8)), float(BODY_H.get(kind, 0.0)))
@@ -139,6 +140,30 @@ static func build(kind: String, variant := 0):
 
 
 # Scale so the model has the wanted height, feet on y=0, centred on x/z.
+# Newer Godot versions no longer switch on vertex colours when importing a glb: skin, hair and coat colours would come out white.
+# Turn it on for every surface that carries a colour array (cloned once per material).
+static var _vc_cache := {}
+static func _vcol(n: Node) -> void:
+	for mi in n.find_children("*", "MeshInstance3D", true, false):
+		var m: MeshInstance3D = mi
+		if m.mesh == null:
+			continue
+		for i in m.mesh.get_surface_count():
+			if (m.mesh.surface_get_format(i) & Mesh.ARRAY_FORMAT_COLOR) == 0:
+				continue
+			var sm := m.mesh.surface_get_material(i) as StandardMaterial3D
+			if sm == null or sm.vertex_color_use_as_albedo:
+				continue
+			var d: StandardMaterial3D
+			if _vc_cache.has(sm):
+				d = _vc_cache[sm]
+			else:
+				d = sm.duplicate()
+				d.vertex_color_use_as_albedo = true
+				_vc_cache[sm] = d
+			m.set_surface_override_material(i, d)
+
+
 static func _fit(inst: Node3D, height: float, body_h: float = 0.0) -> void:
 	var bb := _aabb(inst, inst.transform)
 	if bb.size.y < 0.0001:
